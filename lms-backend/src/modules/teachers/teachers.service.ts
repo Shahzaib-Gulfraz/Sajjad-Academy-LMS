@@ -1,0 +1,293 @@
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import * as argon2 from 'argon2';
+import { Teacher, TeacherDocument } from './schemas/teacher.schema';
+import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { UpdateTeacherDto } from './dto/update-teacher.dto';
+import { UpdateTeacherSelfDto } from './dto/update-teacher-self.dto';
+import { UsersService } from '../users/users.service';
+import { UserRole } from '../../common/auth/roles.enum';
+
+@Injectable()
+export class TeachersService {
+  constructor(
+    @InjectModel(Teacher.name)
+    private readonly teacherModel: Model<TeacherDocument>,
+    private readonly usersService: UsersService,
+  ) {}
+
+  async create(dto: CreateTeacherDto) {
+    const exists = await this.teacherModel.exists({
+      employeeNo: dto.employeeNo,
+    });
+    if (exists) {
+      throw new ConflictException(
+        'Teacher with this employee number already exists.',
+      );
+    }
+
+    const classSubjects = this.normalizeClassSubjects(dto.classSubjects ?? {});
+    const classes = dto.classes ?? Object.keys(classSubjects);
+
+    const defaultPassword = dto.employeeNo;
+    const passwordHash = await argon2.hash(defaultPassword);
+    const user = await this.usersService.create({
+      name: dto.name,
+      email: dto.email,
+      passwordHash,
+      role: UserRole.TEACHER,
+      systemId: dto.employeeNo,
+    });
+
+    const teacher = await this.teacherModel.create({
+      ...dto,
+      userId: user._id,
+      email: dto.email.toLowerCase(),
+      gender: dto.gender ?? '',
+      qualification: dto.qualification ?? '',
+      phone: '',
+      address: '',
+      dob: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      classes: classes.map(c => new Types.ObjectId(c)),
+      classSubjects,
+      status: 'Active',
+    });
+
+    return this.toResponse(teacher);
+  }
+
+  async findAll(query: { subject?: string; search?: string; status?: string }) {
+    const filter: Record<string, unknown> = {};
+    if (query.subject) filter.subject = query.subject;
+    if (query.status) filter.status = query.status;
+    if (query.search) {
+      filter.$or = [
+        { name: { $regex: query.search, $options: 'i' } },
+        { employeeNo: { $regex: query.search, $options: 'i' } },
+        { email: { $regex: query.search, $options: 'i' } },
+      ];
+    }
+
+    const teachers = await this.teacherModel
+      .find(filter)
+      .sort({ name: 1 })
+      .exec();
+    return teachers.map((item) => this.toResponse(item));
+  }
+
+  async findByEmail(email: string) {
+    const teacher = await this.teacherModel
+      .findOne({ email: email.toLowerCase() })
+      .exec();
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher profile not found.');
+    }
+
+    return this.toResponse(teacher);
+  }
+
+  async updateByEmail(email: string, dto: UpdateTeacherSelfDto) {
+    const teacher = await this.teacherModel
+      .findOne({ email: email.toLowerCase() })
+      .exec();
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher profile not found.');
+    }
+
+    if (dto.phone !== undefined) teacher.phone = dto.phone;
+    if (dto.address !== undefined) teacher.address = dto.address;
+    if (dto.dob !== undefined) teacher.dob = dto.dob;
+    if (dto.emergencyContact !== undefined) {
+      teacher.emergencyContact = dto.emergencyContact;
+    }
+    if (dto.emergencyPhone !== undefined) {
+      teacher.emergencyPhone = dto.emergencyPhone;
+    }
+    if (dto.avatarUrl !== undefined) teacher.avatarUrl = dto.avatarUrl;
+
+    await teacher.save();
+
+    if (teacher.userId) {
+      await this.usersService.updateIdentity(teacher.userId.toString(), {
+        name: teacher.name,
+        email: teacher.email,
+        systemId: teacher.employeeNo,
+      });
+    }
+
+    return this.toResponse(teacher);
+  }
+
+  async update(id: string, dto: UpdateTeacherDto) {
+    const teacher = await this.findById(id);
+
+    if (dto.name) teacher.name = dto.name;
+    if (dto.email) teacher.email = dto.email.toLowerCase();
+    if (dto.subject) teacher.subject = dto.subject;
+    if (dto.gender !== undefined) teacher.gender = dto.gender;
+    if (dto.qualification !== undefined)
+      teacher.qualification = dto.qualification;
+    if (dto.classes) teacher.classes = dto.classes.map(c => new Types.ObjectId(c));
+    if (dto.classSubjects) {
+      teacher.classSubjects = this.normalizeClassSubjects(dto.classSubjects);
+    }
+    if (dto.status) teacher.status = dto.status;
+
+    await teacher.save();
+
+    if (teacher.userId) {
+      await this.usersService.updateIdentity(teacher.userId.toString(), {
+        name: teacher.name,
+        email: teacher.email,
+        systemId: teacher.employeeNo,
+      });
+    }
+
+    return this.toResponse(teacher);
+  }
+
+  async remove(id: string) {
+    const teacher = await this.findById(id);
+    await teacher.deleteOne();
+
+    return { id };
+  }
+
+  async resetPassword(id: string) {
+    const teacher = await this.findById(id);
+    return this.resetPasswordForTeacher(teacher);
+  }
+
+  async findByEmployeeNo(employeeNo: string) {
+    return this.teacherModel
+      .findOne({
+        employeeNo: {
+          $regex: `^${this.escapeRegex(employeeNo.trim())}$`,
+          $options: 'i',
+        },
+      })
+      .exec();
+  }
+
+  async resetPasswordByEmployeeNo(employeeNo: string) {
+    const teacher = await this.findByEmployeeNo(employeeNo);
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found.');
+    }
+    return this.resetPasswordForTeacher(teacher);
+  }
+
+  private async resetPasswordForTeacher(teacher: TeacherDocument) {
+    const defaultPassword = teacher.employeeNo;
+    const passwordHash = await argon2.hash(defaultPassword);
+
+    const existingUser =
+      (teacher.userId
+        ? await this.usersService
+            .findById(teacher.userId.toString())
+            .catch(() => null)
+        : null) ?? (await this.usersService.findByEmail(teacher.email));
+
+    if (existingUser) {
+      await this.usersService.updateIdentity(existingUser._id.toString(), {
+        name: teacher.name,
+        email: teacher.email,
+        systemId: teacher.employeeNo,
+      });
+      await this.usersService.updatePasswordHash(
+        existingUser._id.toString(),
+        passwordHash,
+      );
+      await this.usersService.setRefreshTokenHash(
+        existingUser._id.toString(),
+        null,
+      );
+      if (
+        !teacher.userId ||
+        teacher.userId.toString() !== existingUser._id.toString()
+      ) {
+        teacher.userId = existingUser._id;
+        await teacher.save();
+      }
+    } else {
+      const createdUser = await this.usersService.create({
+        name: teacher.name,
+        email: teacher.email,
+        passwordHash,
+        role: UserRole.TEACHER,
+        systemId: teacher.employeeNo,
+      });
+      teacher.userId = createdUser._id;
+      await teacher.save();
+    }
+
+    return {
+      id: teacher._id.toString(),
+      defaultPassword,
+    };
+  }
+
+  private async findById(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('Teacher not found.');
+    }
+
+    const teacher = await this.teacherModel.findById(id).exec();
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found.');
+    }
+
+    return teacher;
+  }
+
+  private toResponse(
+    teacher: TeacherDocument | (Teacher & { _id: Types.ObjectId }),
+  ) {
+    return {
+      id: teacher._id.toString(),
+      employeeNo: teacher.employeeNo,
+      name: teacher.name,
+      email: teacher.email,
+      subject: teacher.subject,
+      gender: teacher.gender,
+      qualification: teacher.qualification,
+      phone: teacher.phone ?? '',
+      address: teacher.address ?? '',
+      dob: teacher.dob ?? '',
+      emergencyContact: teacher.emergencyContact ?? '',
+      emergencyPhone: teacher.emergencyPhone ?? '',
+      avatarUrl: teacher.avatarUrl ?? '',
+      classes: (teacher.classes ?? []).map(c => c.toString()),
+      classSubjects: Object.fromEntries(
+        Array.from(
+          (teacher.classSubjects instanceof Map
+            ? teacher.classSubjects.entries()
+            : Object.entries(teacher.classSubjects ?? {})) as any,
+        ).map(([key, value]) => [key, Array.isArray(value) ? value : []]),
+      ),
+      status: teacher.status,
+    };
+  }
+
+  private normalizeClassSubjects(value: Record<string, string[]>) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, subjects]) => [
+        key,
+        Array.from(new Set((subjects ?? []).filter(Boolean))),
+      ]),
+    );
+  }
+
+  private escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+}

@@ -1,0 +1,42 @@
+# Ignore Markdown files
+*.md
+
+# Ignore common script file types
+*.sh
+*.ps1
+*.bat
+*.cmd
+# Ignore Markdown files
+*.md
+# Ignore Markdown files
+*.md
+#readme.md still need
+!readme.md
+
+# Ignore common script file types
+*.sh
+*.ps1
+*.bat
+*.cmd
+
+# Ignore environment files
+.env
+.env.*
+
+# You can add more patterns below as needed
+# Ignore common script file types
+*.sh
+*.ps1
+*.bat
+*.cmd
+
+# Ignore environment files
+.env
+.env.*
+
+# You can add more patterns below as needed
+# Ignore environment files
+.env
+.env.*
+
+# You can add more patterns below as needed
