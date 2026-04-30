@@ -1,170 +1,131 @@
-# FullLMS — LMS (Frontend + Backend)
+# FullLMS — Sajjad Academy LMS
 
-This folder contains the Learning Management System (LMS) application used in the FullLMS project. It includes a React + TypeScript frontend and a NestJS + TypeScript backend. The project provides features for admin, teacher and student portals including timetable planning, attendance, quizzes, assignments, gradebook, and more.
+A professional Learning Management System (LMS) repository containing the frontend and backend applications used by Sajjad Academy. This document summarises the project, how to run it locally, developer notes, and useful commands.
 
----
+Table of contents
+- Project overview
+- Features
+- Architecture & folders
+- Quick start (Linux)
+- Environment variables
+- Builds & testing
+- Developer notes
+- Contributing
+- Contact
 
-## Contents
+Project overview
+----------------
+FullLMS provides role-based LMS functionality for Admins, Teachers and Students. It includes a timetable planner, attendance and gradebook modules, assignment and quiz workflows, notifications, and media uploads.
 
-- `lms/` — Frontend application (Vite + React + TypeScript)
-  - `src/` — React source
-  - `public/` — static assets
-  - `package.json`, `vite.config.ts` — build tooling
-- `lms-backend/` — Backend (NestJS + TypeScript)
-  - `src/` — NestJS modules, controllers, services
-  - `package.json`, `tsconfig.json` — build tooling
-- `TEACHER_CLASSES_INSPECTION_REPORT.md` — project-specific notes and reports
-
----
-
-## Project Overview
-
-This LMS implements:
-- User roles: Admin, Teacher, Student
+Features
+--------
+- Role-based access control (Admin / Teacher / Student)
 - Timetable Planner (Admin): create allocations with `startDate`/`endDate` ranges, start/end times, class, subject, teacher
-- Timetable (Student): weekly schedule view with server-resolved class and subject names, smart filtering, and active/inactive indicators for date ranges
-- Authentication & authorization (JWT / session in backend)
-- Integrations: Cloudinary for media upload (config in backend integrations)
+- Student Timetable: weekly schedule view with server-resolved class/subject names, smart filtering, and active/inactive period indicators
+- Assignments & Quizzes: create, submit, grade, and review
+- Attendance & Gradebook: attendance recording and reporting tools
+- Announcements & Notifications: in-app notifications and announcements
+- File uploads: Cloudinary integration (configurable)
+- API-first design with typed DTOs, validation and error handling
 
----
+Architecture & repository layout
+-------------------------------
+- `lms/` — Frontend (Vite + React + TypeScript)
+	- `src/` — React app source
+	- `public/` — static assets
+- `lms-backend/` — Backend (NestJS + TypeScript)
+	- `src/` — modules, controllers, services, DTOs
+- `TEACHER_CLASSES_INSPECTION_REPORT.md` — migration/inspection notes
 
-## Local Setup
+Quick start (Linux)
+-------------------
+Prerequisites
+- Node 18+ (or as required by `package.json`)
+- npm (or pnpm)
+- MongoDB (local or remote)
 
-Requirements:
-- Node 18+ (or project Node version from package.json)
-- pnpm / npm (any package manager supported by scripts)
-- MongoDB running (connection string configured via environment variables)
-
-1. Install dependencies (frontend & backend)
-
+Install dependencies
 ```bash
 # Frontend
 cd FullLMS/LMS/lms
 npm install
 
 # Backend
-cd FullLMS/LMS/lms-backend
+cd ../lms-backend
 npm install
 ```
 
-2. Environment variables
-
-Create `.env` or `.env.local` files (not committed). Typical variables (backend):
-
-```
+Environment variables
+---------------------
+Create `.env` files (do not commit). Example backend `.env` (place in `lms-backend/`):
+```env
 MONGODB_URI=mongodb://localhost:27017/full_lms
 JWT_SECRET=your_jwt_secret
-CLOUDINARY_URL=...
+CLOUDINARY_URL=cloudinary://<key>:<secret>@<cloud_name>
 PORT=3000
 ```
 
-Frontend (example):
-
-```
+Frontend example (place in `lms/`):
+```env
 VITE_API_BASE_URL=http://localhost:3000
 ```
 
-3. Run locally
-
+Run locally
 ```bash
-# Backend (development)
+# Start backend (development)
 cd FullLMS/LMS/lms-backend
 npm run start:dev
 
-# Frontend (development)
-cd FullLMS/LMS/lms
+# Start frontend (development)
+cd ../lms
 npm run dev
 ```
 
----
-
-## Build for Production
-
+Build & testing
+---------------
 ```bash
-# Frontend
+# Frontend build
 cd FullLMS/LMS/lms
 npm run build
 
-# Backend
-cd FullLMS/LMS/lms-backend
+# Backend build
+cd ../lms-backend
 npm run build
-```
 
-The frontend build outputs `dist/`. The backend build outputs to `dist/` per NestJS defaults.
-
----
-
-## Key Developer Notes
-
-- Timetable data:
-  - Backend returns resolved `className` and `subject` names (server-side mapping from ObjectId/UUID to names).
-  - Timetable slots can be legacy single-date (`date`) or ranged with `startDate`/`endDate` fields.
-  - Backend list queries include overlap logic to return slots that intersect the requested week range.
-
-- Student UI changes:
-  - The Student timetable component now receives subject names and date-range metadata from the API and displays compact course chips and only days that have scheduled classes.
-  - Inactive courses (outside their `startDate`/`endDate`) are shown with reduced opacity/strike-through and an indicator.
-
-- Admin UI (Timetable Planner):
-  - Admin can create allocations using `startDate` + `endDate` to define course periods.
-  - Conflict detection checks for date-range overlaps and time conflicts.
-
----
-
-## Testing
-
-- Frontend type-check and build:
-
-```bash
-cd FullLMS/LMS/lms
-npm run build
-```
-
-- Backend build and tests:
-
-```bash
-cd FullLMS/LMS/lms-backend
-npm run build
-# run unit/e2e tests if present
+# Run backend tests (if present)
 npm run test
 ```
 
----
+Developer notes
+---------------
+- Timetable model:
+	- Supports legacy single-date slots (`date`) and ranged slots (`startDate`/`endDate`).
+	- Backend resolves `className` (ObjectId) and `subject` (UUID) into readable names before returning API responses.
+	- List endpoints use date-range overlap logic to return slots intersecting a given week range.
+- Student UI:
+	- Displays compact course chips and only shows days that have scheduled classes.
+	- Marks inactive courses (outside range) visually with reduced opacity or strike-through.
+- Admin UI:
+	- Admins can create allocations spanning date ranges; server-side conflict detection prevents overlaps.
 
-## Deployment & Notes
+Contributing
+------------
+- Please open pull requests against `main` and include tests and documentation for significant changes.
+- Consider adding `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` for public collaboration.
 
-- Configure environment variables in your deployment environment (Docker, Kubernetes, or managed services).
-- Ensure MongoDB indices for timetable queries are present if performance becomes a factor (date range queries).
+Contact & maintainers
+---------------------
+- Check repository commit history for authors and maintainers.
+- For environment/deployment questions, review `lms-backend/src/config` and contact the backend owner.
 
----
+License
+-------
+Add a `LICENSE` file or specify the license (e.g., MIT) here.
 
-## Useful Commands (recap)
+Next steps (optional)
+---------------------
+- Add `.env.example` with safe placeholders.
+- Add `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
+- Add Dockerfile and docker-compose for local development.
 
-- Frontend dev: `cd lms && npm run dev`
-- Frontend build: `cd lms && npm run build`
-- Backend dev: `cd lms-backend && npm run start:dev`
-- Backend build: `cd lms-backend && npm run build`
-
----
-
-## Where to look in the code
-
-- Frontend timetable: `lms/src/components/student/timetable` and `lms/src/components/student/timetable/hooks`
-- Admin planner: `lms/src/components/admin` (or `AdminTimetablePlanner.tsx`)
-- Backend timetable service & DTOs: `lms-backend/src/modules/timetable` (look for `timetable.service.ts` and DTOs)
-
----
-
-## Maintainers / Contacts
-
-- Primary developer: check repository commit history for author details
-- For questions about deployment or env, ask the backend owner listed in `lms-backend/src/config` files
-
----
-
-If you want, I can:
-- Add a short Quick Start section tailored to your OS (Linux)
-- Add example `.env` templates (safe defaults)
-- Create a `CONTRIBUTING.md` with branch/PR rules
-
-# Sajjad-Academy-LMS
+Sajjad Academy — FullLMS
