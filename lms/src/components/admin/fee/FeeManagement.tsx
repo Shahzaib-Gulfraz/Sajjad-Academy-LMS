@@ -37,9 +37,12 @@ const FeeManagement = ({
     setPendingOnly(showPendingOnly);
   }, [showPendingOnly]);
 
+  // Build a set of existing student IDs so we can exclude transactions for deleted/missing students
+  const studentIdSet = useMemo(() => new Set(students.map((s) => s.id)), [students]);
+
   const pendingStudents = useMemo(
-    () => students.filter((s) => s.fees.pending > 0),
-    [students]
+    () => students.filter((s) => s.fees.pending > 0 && studentIdSet.has(s.id)),
+    [students, studentIdSet]
   );
 
   const totalPending = pendingStudents.reduce((sum, s) => sum + s.fees.pending, 0);
@@ -67,13 +70,15 @@ const FeeManagement = ({
 
   const filteredTransactions = useMemo(() => {
     const q = receiptQuery.trim().toLowerCase();
-    if (!q) return transactions;
-    return transactions.filter(
+    // First exclude transactions for students that no longer exist
+    const base = transactions.filter((tx) => studentIdSet.has(tx.studentId));
+    if (!q) return base;
+    return base.filter(
       (tx) =>
         tx.receiptNo.toLowerCase().includes(q) ||
         tx.id.toLowerCase().includes(q)
     );
-  }, [receiptQuery, transactions]);
+  }, [receiptQuery, transactions, studentIdSet]);
 
   const selectedStudentTransactions = useMemo(() => {
     if (!selectedStudent) return [];
@@ -495,7 +500,7 @@ const FeeManagement = ({
                   Past Transactions
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {selectedStudent.name} · {studentCode(selectedStudent.id)}
+                  {selectedStudent.name} ï¿½ {studentCode(selectedStudent.id)}
                 </p>
               </div>
               <div className="text-sm text-muted-foreground">
@@ -546,7 +551,7 @@ const FeeManagement = ({
                         <td>{tx.method}</td>
                         <td>{tx.collector}</td>
                         <td>
-                          {tx.remarks || "—"}
+                          {tx.remarks || "ï¿½"}
                         </td>
                       </tr>
                     ))
