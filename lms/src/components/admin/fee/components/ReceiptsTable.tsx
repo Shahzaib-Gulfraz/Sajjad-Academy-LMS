@@ -149,7 +149,11 @@ const ReceiptsTable = ({
               <tr key={tx.id}>
                 <td className="px-4 py-2 text-sm">{formatDate(tx.transactionDate)}</td>
                 <td className="px-4 py-2 text-sm font-mono">{tx.receiptNo}</td>
-                <td className="px-4 py-2 text-sm">{tx.studentName}</td>
+                <td className="px-4 py-2 text-sm">{(
+                  // Prefer authoritative student name from `students` prop,
+                  // fall back to transaction's stored name, then to formatted ID.
+                  students.find((s) => s.id === tx.studentId)?.name || tx.studentName || `STU-${String(tx.studentId).padStart(4, "0")}`
+                )}</td>
                 <td className="px-4 py-2 text-sm font-semibold">
                   Rs. {tx.amount.toLocaleString()}
                 </td>
