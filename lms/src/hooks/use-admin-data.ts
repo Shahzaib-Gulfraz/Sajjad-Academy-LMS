@@ -783,12 +783,36 @@ export const useAdminData = () => {
       }).filter(Boolean)),
     );
 
+    const admissionNo = (student.admissionNo ?? String(student.id)).trim();
+    const email = student.email.trim().toLowerCase();
+
+    const availability = await apiAuthRequest<{
+      admissionNoExists: boolean;
+      emailExists: boolean;
+    }>(
+      `/students/availability?admissionNo=${encodeURIComponent(admissionNo)}&email=${encodeURIComponent(email)}`,
+    );
+
+    if (availability.admissionNoExists) {
+      throw new ApiRequestError(
+        `Admission number ${admissionNo} is already assigned to another student.`,
+        409,
+      );
+    }
+
+    if (availability.emailExists) {
+      throw new ApiRequestError(
+        `Email ${email} is already assigned to another user.`,
+        409,
+      );
+    }
+
     const created = await apiAuthRequest<BackendStudent>("/students", {
       method: "POST",
       body: JSON.stringify({
-        admissionNo: student.admissionNo ?? String(student.id),
+        admissionNo,
         name: student.name,
-        email: student.email,
+        email,
         grade: classId || student.grade,
         guardian: student.guardian,
         guardianPhone: student.guardianPhone,
@@ -883,12 +907,36 @@ export const useAdminData = () => {
       }
     });
 
+    const employeeNo = (teacher.employeeNo ?? String(teacher.id)).trim();
+    const email = teacher.email.trim().toLowerCase();
+
+    const availability = await apiAuthRequest<{
+      employeeNoExists: boolean;
+      emailExists: boolean;
+    }>(
+      `/teachers/availability?employeeNo=${encodeURIComponent(employeeNo)}&email=${encodeURIComponent(email)}`,
+    );
+
+    if (availability.employeeNoExists) {
+      throw new ApiRequestError(
+        `Employee number ${employeeNo} is already assigned to another teacher.`,
+        409,
+      );
+    }
+
+    if (availability.emailExists) {
+      throw new ApiRequestError(
+        `Email ${email} is already assigned to another user.`,
+        409,
+      );
+    }
+
     const created = await apiAuthRequest<BackendTeacher>("/teachers", {
       method: "POST",
       body: JSON.stringify({
-        employeeNo: teacher.employeeNo ?? String(teacher.id),
+        employeeNo,
         name: teacher.name,
-        email: teacher.email,
+        email,
         subject: teacher.subject,
         gender: teacher.gender,
         qualification: teacher.qualification,

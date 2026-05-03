@@ -88,6 +88,35 @@ export class TeachersController {
     };
   }
 
+  @Get('availability')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Check teacher employee number and email availability' })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            employeeNoExists: { type: 'boolean' },
+            emailExists: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
+  async checkAvailability(
+    @Query('employeeNo') employeeNo?: string,
+    @Query('email') email?: string,
+  ) {
+    return {
+      data: await this.teachersService.checkAvailability(
+        employeeNo ?? '',
+        email ?? '',
+      ),
+    };
+  }
+
   @Post()
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create teacher' })

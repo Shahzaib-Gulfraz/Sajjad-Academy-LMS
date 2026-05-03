@@ -9,14 +9,14 @@
 # Ignore Markdown files
 *.md
 # Ignore Markdown files
-*.md
+*.md 
 #readme.md still need
 !readme.md
 
 # Ignore common script file types
 *.sh
 *.ps1
-*.bat
+*.bat 
 *.cmd
 
 # Ignore environment files

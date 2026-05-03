@@ -2,7 +2,7 @@
 
 A professional Learning Management System (LMS) repository containing the frontend and backend applications used by Sajjad Academy. This document summarises the project, how to run it locally, developer notes, and useful commands.
 
-Table of contents
+Table of contents a gy hjy
 - Project overview
 - Features
 - Architecture & folders

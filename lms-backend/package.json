@@ -13,6 +13,8 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "create:admin": "node scripts/create-admin.js",
+    "cleanup:orphan-student-users": "node scripts/cleanup-orphan-student-users.js",
+    "cleanup:orphan-teacher-users": "node scripts/cleanup-orphan-teacher-users.js",
     "sync:course-enrollments": "node scripts/sync-course-enrollments.js",
     "sync:course-enrollments:write": "node scripts/sync-course-enrollments.js --write",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

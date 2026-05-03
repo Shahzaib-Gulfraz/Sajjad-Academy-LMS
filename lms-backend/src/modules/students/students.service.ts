@@ -12,12 +12,60 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 import { UpdateStudentSelfDto } from './dto/update-student-self.dto';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../../common/auth/roles.enum';
+import {
+  CourseEnrollment,
+  CourseEnrollmentDocument,
+} from '../courses/schemas/enrollment.schema';
+import {
+  AssignmentSubmission,
+  AssignmentSubmissionDocument,
+} from '../assignments/schemas/assignment-submission.schema';
+import {
+  QuizSubmission,
+  QuizSubmissionDocument,
+} from '../quizzes/schemas/quiz-submission.schema';
+import {
+  AttendanceSession,
+  AttendanceSessionDocument,
+} from '../attendance/schemas/attendance-session.schema';
+import {
+  FeeInvoice,
+  FeeInvoiceDocument,
+} from '../fees/schemas/fee-invoice.schema';
+import {
+  FeeTransaction,
+  FeeTransactionDocument,
+} from '../fees/schemas/fee-transaction.schema';
+import {
+  GradebookEntry,
+  GradebookEntryDocument,
+} from '../gradebook/schemas/gradebook-entry.schema';
+import {
+  Announcement,
+  AnnouncementDocument,
+} from '../announcements/schemas/announcement.schema';
 
 @Injectable()
 export class StudentsService {
   constructor(
     @InjectModel(Student.name)
     private readonly studentModel: Model<StudentDocument>,
+    @InjectModel(CourseEnrollment.name)
+    private readonly courseEnrollmentModel: Model<CourseEnrollmentDocument>,
+    @InjectModel(AssignmentSubmission.name)
+    private readonly assignmentSubmissionModel: Model<AssignmentSubmissionDocument>,
+    @InjectModel(QuizSubmission.name)
+    private readonly quizSubmissionModel: Model<QuizSubmissionDocument>,
+    @InjectModel(AttendanceSession.name)
+    private readonly attendanceSessionModel: Model<AttendanceSessionDocument>,
+    @InjectModel(FeeInvoice.name)
+    private readonly feeInvoiceModel: Model<FeeInvoiceDocument>,
+    @InjectModel(FeeTransaction.name)
+    private readonly feeTransactionModel: Model<FeeTransactionDocument>,
+    @InjectModel(GradebookEntry.name)
+    private readonly gradebookEntryModel: Model<GradebookEntryDocument>,
+    @InjectModel(Announcement.name)
+    private readonly announcementModel: Model<AnnouncementDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -51,9 +99,8 @@ export class StudentsService {
       phone: '',
       address: '',
       subjects: dto.subjects ?? [],
-      // Enrollment links are managed by courses enrollments API.
-      enrolledCourses: [],
-      enrolledCourseIds: [],
+      enrolledCourses: dto.enrolledCourses ?? dto.enrolledCourseIds ?? [],
+      enrolledCourseIds: dto.enrolledCourseIds ?? dto.enrolledCourses ?? [],
       status: 'Active',
     });
 
@@ -157,7 +204,51 @@ export class StudentsService {
 
   async remove(id: string) {
     const student = await this.findById(id);
+    const studentObjectId = student._id;
+
+    // Delete all related records in parallel
+    await Promise.all([
+      // Course enrollments
+      this.courseEnrollmentModel.deleteMany({ studentId: studentObjectId }).exec(),
+      
+      // Assignment submissions
+      this.assignmentSubmissionModel.deleteMany({ studentId: student.admissionNo }).exec(),
+      
+      // Quiz submissions
+      this.quizSubmissionModel.deleteMany({ studentId: student.admissionNo }).exec(),
+      
+      // Attendance entries for this student
+      this.attendanceSessionModel.updateMany(
+        { 'entries.studentId': student.admissionNo },
+        { $pull: { entries: { studentId: student.admissionNo } } }
+      ).exec(),
+      
+      // Fee invoices
+      this.feeInvoiceModel.deleteMany({ studentId: student.admissionNo }).exec(),
+      
+      // Fee transactions
+      this.feeTransactionModel.deleteMany({ studentId: student.admissionNo }).exec(),
+      
+      // Gradebook entries (remove student marks)
+      this.gradebookEntryModel.updateMany(
+        { 'marks.studentId': student.admissionNo },
+        { $pull: { marks: { studentId: student.admissionNo } } }
+      ).exec(),
+      
+      // Remove from announcement targets
+      this.announcementModel.updateMany(
+        { targetStudentIds: student.admissionNo },
+        { $pull: { targetStudentIds: student.admissionNo } }
+      ).exec(),
+    ]);
+
+    // Delete the student record
     await student.deleteOne();
+
+    // Delete the associated user
+    if (student.userId) {
+      await this.usersService.remove(student.userId.toString());
+    }
 
     return { id };
   }
@@ -176,6 +267,35 @@ export class StudentsService {
         },
       })
       .exec();
+  }
+
+  async getByAdmissionNo(admissionNo: string) {
+    const student = await this.findByAdmissionNo(admissionNo);
+    if (!student) {
+      throw new NotFoundException('Student not found.');
+    }
+
+    return this.toResponse(student);
+  }
+
+  async checkAvailability(admissionNo: string, email: string) {
+    const normalizedAdmissionNo = admissionNo.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const [studentExists, userExists] = await Promise.all([
+      this.studentModel.exists({
+        admissionNo: {
+          $regex: `^${this.escapeRegex(normalizedAdmissionNo)}$`,
+          $options: 'i',
+        },
+      }),
+      this.usersService.findByEmail(normalizedEmail),
+    ]);
+
+    return {
+      admissionNoExists: !!studentExists,
+      emailExists: !!userExists,
+    };
   }
 
   async resetPasswordByAdmissionNo(admissionNo: string) {

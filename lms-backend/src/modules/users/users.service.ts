@@ -175,6 +175,14 @@ export class UsersService {
       .exec();
   }
 
+  async remove(id: string): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) {
+      return;
+    }
+
+    await this.userModel.deleteOne({ _id: id }).exec();
+  }
+
   sanitizeUser(user: UserDocument) {
     return {
       id: user._id.toString(),

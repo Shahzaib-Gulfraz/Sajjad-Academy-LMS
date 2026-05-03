@@ -12,12 +12,42 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateTeacherSelfDto } from './dto/update-teacher-self.dto';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../../common/auth/roles.enum';
+import { Course, CourseDocument } from '../courses/schemas/course.schema';
+import {
+  Assignment,
+  AssignmentDocument,
+} from '../assignments/schemas/assignment.schema';
+import { Quiz, QuizDocument } from '../quizzes/schemas/quiz.schema';
+import {
+  TimetableSlot,
+  TimetableSlotDocument,
+} from '../timetable/schemas/timetable-slot.schema';
+import {
+  AttendanceSession,
+  AttendanceSessionDocument,
+} from '../attendance/schemas/attendance-session.schema';
+import {
+  GradebookEntry,
+  GradebookEntryDocument,
+} from '../gradebook/schemas/gradebook-entry.schema';
 
 @Injectable()
 export class TeachersService {
   constructor(
     @InjectModel(Teacher.name)
     private readonly teacherModel: Model<TeacherDocument>,
+    @InjectModel(Course.name)
+    private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(Assignment.name)
+    private readonly assignmentModel: Model<AssignmentDocument>,
+    @InjectModel(Quiz.name)
+    private readonly quizModel: Model<QuizDocument>,
+    @InjectModel(TimetableSlot.name)
+    private readonly timetableSlotModel: Model<TimetableSlotDocument>,
+    @InjectModel(AttendanceSession.name)
+    private readonly attendanceSessionModel: Model<AttendanceSessionDocument>,
+    @InjectModel(GradebookEntry.name)
+    private readonly gradebookEntryModel: Model<GradebookEntryDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -157,7 +187,36 @@ export class TeachersService {
 
   async remove(id: string) {
     const teacher = await this.findById(id);
+    const teacherObjectId = teacher._id;
+
+    // Delete all related records in parallel
+    await Promise.all([
+      // Courses taught by this teacher
+      this.courseModel.deleteMany({ teacherId: teacherObjectId }).exec(),
+      
+      // Assignments created by this teacher
+      this.assignmentModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
+      
+      // Quizzes created by this teacher
+      this.quizModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
+      
+      // Timetable slots assigned to this teacher
+      this.timetableSlotModel.deleteMany({ teacherId: teacherObjectId }).exec(),
+      
+      // Attendance sessions created by this teacher
+      this.attendanceSessionModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
+      
+      // Gradebook entries (grades) created by this teacher
+      this.gradebookEntryModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
+    ]);
+
+    // Delete the teacher record
     await teacher.deleteOne();
+
+    // Delete the associated user
+    if (teacher.userId) {
+      await this.usersService.remove(teacher.userId.toString());
+    }
 
     return { id };
   }
@@ -176,6 +235,26 @@ export class TeachersService {
         },
       })
       .exec();
+  }
+
+  async checkAvailability(employeeNo: string, email: string) {
+    const normalizedEmployeeNo = employeeNo.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const [teacherExists, userExists] = await Promise.all([
+      this.teacherModel.exists({
+        employeeNo: {
+          $regex: `^${this.escapeRegex(normalizedEmployeeNo)}$`,
+          $options: 'i',
+        },
+      }),
+      this.usersService.findByEmail(normalizedEmail),
+    ]);
+
+    return {
+      employeeNoExists: !!teacherExists,
+      emailExists: !!userExists,
+    };
   }
 
   async resetPasswordByEmployeeNo(employeeNo: string) {

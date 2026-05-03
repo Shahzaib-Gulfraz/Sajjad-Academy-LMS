@@ -8,6 +8,7 @@ import {
   Query,
   Param,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -85,6 +86,45 @@ export class StudentsController {
   ) {
     return {
       data: await this.studentsService.findAll({ className, status, search }),
+    };
+  }
+
+  @Get('by-admission/:admissionNo')
+  @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Find student by admission number' })
+  @ApiOkResponse({ type: StudentSingleResponseDto })
+  async findByAdmissionNo(@Param('admissionNo') admissionNo: string) {
+    return {
+      data: await this.studentsService.getByAdmissionNo(admissionNo),
+    };
+  }
+
+  @Get('availability')
+  @Roles(UserRole.ADMIN, UserRole.TEACHER)
+  @ApiOperation({ summary: 'Check student admission number and email availability' })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          properties: {
+            admissionNoExists: { type: 'boolean' },
+            emailExists: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
+  async checkAvailability(
+    @Query('admissionNo') admissionNo?: string,
+    @Query('email') email?: string,
+  ) {
+    return {
+      data: await this.studentsService.checkAvailability(
+        admissionNo ?? '',
+        email ?? '',
+      ),
     };
   }
 
