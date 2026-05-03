@@ -102,11 +102,30 @@ const AdminAttendance = ({ students = [], allTeacherClasses = [] }: AdminAttenda
   }, [allTeacherClasses]);
 
   const classOptions = useMemo(() => {
-    const set = new Set(students.map((s) => s.grade));
-    teacherSubmissions.forEach((entry) => set.add(entry.className));
-    const ids = Array.from(set).sort((a, b) => a.localeCompare(b));
-    const displayNames = ids.map((id) => classIdToNameMap.get(id) || id);
-    return ["All Classes", ...displayNames];
+    // Collect all unique class identifiers from students and submissions
+    const uniqueClasses = new Array<{ id: string; displayName: string }>();
+    const seenIds = new Set<string>();
+
+    students.forEach((student) => {
+      if (student.grade && !seenIds.has(student.grade)) {
+        seenIds.add(student.grade);
+        const displayName = classIdToNameMap.get(student.grade) || student.grade;
+        uniqueClasses.push({ id: student.grade, displayName });
+      }
+    });
+
+    teacherSubmissions.forEach((entry) => {
+      if (entry.className && !seenIds.has(entry.className)) {
+        seenIds.add(entry.className);
+        const displayName = classIdToNameMap.get(entry.className) || entry.className;
+        uniqueClasses.push({ id: entry.className, displayName });
+      }
+    });
+
+    // Sort by display name
+    uniqueClasses.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    return ["All Classes", ...uniqueClasses.map((c) => c.displayName)];
   }, [students, teacherSubmissions, classIdToNameMap]);
 
   const classSummary = useMemo(() => {
@@ -127,27 +146,43 @@ const AdminAttendance = ({ students = [], allTeacherClasses = [] }: AdminAttenda
     }));
   }, [teacherSubmissions, classIdToNameMap]);
 
-  const filteredStudents = useMemo(() => {
-    let classId = selectedClass;
-    if (selectedClass !== "All Classes") {
-      // Convert display name back to ID if needed
-      for (const [id, name] of classIdToNameMap.entries()) {
-        if (name === selectedClass) {
-          classId = id;
-          break;
-        }
+  // Build a map of display names to class IDs for reliable reverse lookup
+  const displayNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    students.forEach((student) => {
+      if (student.grade) {
+        const displayName = classIdToNameMap.get(student.grade) || student.grade;
+        map.set(displayName, student.grade);
       }
+    });
+    teacherSubmissions.forEach((entry) => {
+      if (entry.className && !map.has(entry.className)) {
+        const displayName = classIdToNameMap.get(entry.className) || entry.className;
+        map.set(displayName, entry.className);
+      }
+    });
+    return map;
+  }, [students, teacherSubmissions, classIdToNameMap]);
+
+  const filteredStudents = useMemo(() => {
+    let classId = "All Classes";
+
+    if (selectedClass !== "All Classes") {
+      // Look up the class ID from the display name
+      classId = displayNameToIdMap.get(selectedClass) || selectedClass;
     }
-    
+
     return students.filter((student) => {
       const classMatch = classId === "All Classes" || student.grade === classId;
       if (!classMatch) return false;
+
       if (!normalizedQuery) return true;
+
       const nameMatch = student.name.toLowerCase().includes(normalizedQuery);
       const idMatch = `${student.id}`.includes(normalizedQuery);
       return nameMatch || idMatch;
     });
-  }, [normalizedQuery, selectedClass, students, classIdToNameMap]);
+  }, [normalizedQuery, selectedClass, students, displayNameToIdMap]);
 
   useEffect(() => {
     let mounted = true;
