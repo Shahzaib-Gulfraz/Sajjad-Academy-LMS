@@ -30,6 +30,7 @@ import {
   GradebookEntry,
   GradebookEntryDocument,
 } from '../gradebook/schemas/gradebook-entry.schema';
+import { LeaveRequest, LeaveRequestDocument } from '../leaves/schemas/leave-request.schema';
 
 @Injectable()
 export class TeachersService {
@@ -48,6 +49,8 @@ export class TeachersService {
     private readonly attendanceSessionModel: Model<AttendanceSessionDocument>,
     @InjectModel(GradebookEntry.name)
     private readonly gradebookEntryModel: Model<GradebookEntryDocument>,
+    @InjectModel(LeaveRequest.name)
+    private readonly leaveModel: Model<LeaveRequestDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -190,25 +193,34 @@ export class TeachersService {
     const teacherObjectId = teacher._id;
 
     // Delete all related records in parallel
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       // Courses taught by this teacher
       this.courseModel.deleteMany({ teacherId: teacherObjectId }).exec(),
-      
+
       // Assignments created by this teacher
       this.assignmentModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
-      
+
       // Quizzes created by this teacher
       this.quizModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
-      
+
       // Timetable slots assigned to this teacher
       this.timetableSlotModel.deleteMany({ teacherId: teacherObjectId }).exec(),
-      
+
       // Attendance sessions created by this teacher
       this.attendanceSessionModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
-      
+
       // Gradebook entries (grades) created by this teacher
       this.gradebookEntryModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
-    ]);
+    ];
+
+    // Remove leave requests made by this teacher (if linked to a user)
+    if (teacher.userId) {
+      tasks.push(
+        this.leaveModel.deleteMany({ requesterUserId: teacher.userId.toString() }).exec(),
+      );
+    }
+
+    await Promise.all(tasks);
 
     // Delete the teacher record
     await teacher.deleteOne();

@@ -44,6 +44,7 @@ import {
   Announcement,
   AnnouncementDocument,
 } from '../announcements/schemas/announcement.schema';
+import { LeaveRequest, LeaveRequestDocument } from '../leaves/schemas/leave-request.schema';
 
 @Injectable()
 export class StudentsService {
@@ -66,6 +67,8 @@ export class StudentsService {
     private readonly gradebookEntryModel: Model<GradebookEntryDocument>,
     @InjectModel(Announcement.name)
     private readonly announcementModel: Model<AnnouncementDocument>,
+    @InjectModel(LeaveRequest.name)
+    private readonly leaveModel: Model<LeaveRequestDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -207,40 +210,49 @@ export class StudentsService {
     const studentObjectId = student._id;
 
     // Delete all related records in parallel
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       // Course enrollments
       this.courseEnrollmentModel.deleteMany({ studentId: studentObjectId }).exec(),
-      
+
       // Assignment submissions
       this.assignmentSubmissionModel.deleteMany({ studentId: student.admissionNo }).exec(),
-      
+
       // Quiz submissions
       this.quizSubmissionModel.deleteMany({ studentId: student.admissionNo }).exec(),
-      
+
       // Attendance entries for this student
       this.attendanceSessionModel.updateMany(
         { 'entries.studentId': student.admissionNo },
         { $pull: { entries: { studentId: student.admissionNo } } }
       ).exec(),
-      
+
       // Fee invoices
       this.feeInvoiceModel.deleteMany({ studentId: student.admissionNo }).exec(),
-      
+
       // Fee transactions
       this.feeTransactionModel.deleteMany({ studentId: student.admissionNo }).exec(),
-      
+
       // Gradebook entries (remove student marks)
       this.gradebookEntryModel.updateMany(
         { 'marks.studentId': student.admissionNo },
         { $pull: { marks: { studentId: student.admissionNo } } }
       ).exec(),
-      
+
       // Remove from announcement targets
       this.announcementModel.updateMany(
         { targetStudentIds: student.admissionNo },
         { $pull: { targetStudentIds: student.admissionNo } }
       ).exec(),
-    ]);
+    ];
+
+    // Remove leave requests made by this student (if linked to a user)
+    if (student.userId) {
+      tasks.push(
+        this.leaveModel.deleteMany({ requesterUserId: student.userId.toString() }).exec(),
+      );
+    }
+
+    await Promise.all(tasks);
 
     // Delete the student record
     await student.deleteOne();

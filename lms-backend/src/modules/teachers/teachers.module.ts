@@ -22,6 +22,7 @@ import {
   GradebookEntry,
   GradebookEntrySchema,
 } from '../gradebook/schemas/gradebook-entry.schema';
+import { LeaveRequest, LeaveRequestSchema } from '../leaves/schemas/leave-request.schema';
 
 @Module({
   imports: [
@@ -53,6 +54,10 @@ import {
       {
         name: GradebookEntry.name,
         schema: GradebookEntrySchema,
+      },
+      {
+        name: LeaveRequest.name,
+        schema: LeaveRequestSchema,
       },
     ]),
     UsersModule,

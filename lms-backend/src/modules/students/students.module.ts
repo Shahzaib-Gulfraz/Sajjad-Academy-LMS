@@ -36,6 +36,7 @@ import {
   Announcement,
   AnnouncementSchema,
 } from '../announcements/schemas/announcement.schema';
+import { LeaveRequest, LeaveRequestSchema } from '../leaves/schemas/leave-request.schema';
 
 @Module({
   imports: [
@@ -75,6 +76,10 @@ import {
       {
         name: Announcement.name,
         schema: AnnouncementSchema,
+      },
+      {
+        name: LeaveRequest.name,
+        schema: LeaveRequestSchema,
       },
     ]),
     UsersModule,
