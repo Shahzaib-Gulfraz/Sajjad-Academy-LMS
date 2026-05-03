@@ -49,6 +49,8 @@ type BackendAnnouncement = {
   content: string;
   priority: "low" | "medium" | "high";
   authorName: string;
+  authorRole?: string;
+  hidden?: boolean;
   publishedAt: string;
 };
 
@@ -145,11 +147,14 @@ const initials = (name: string) =>
 
 const mapAnnouncement = (announcement: BackendAnnouncement, index: number): Announcement => ({
   id: toNumber(announcement.id, index + 1),
+  backendId: announcement.id,
   title: announcement.title,
   date: announcement.publishedAt.slice(0, 10),
   priority: announcement.priority,
   content: announcement.content,
   author: announcement.authorName,
+  authorRole: announcement.authorRole,
+  hidden: announcement.hidden ?? false,
 });
 
 const feeStatusFromSummary = (summary: {
@@ -617,6 +622,24 @@ export const useAdminData = () => {
     const mapped = mapAnnouncement(created, Date.now());
     setAnnouncements((prev) => [mapped, ...prev]);
     return mapped;
+  };
+
+  const deleteAnnouncement = async (announcementId: number | string) => {
+    // backend expects string id
+    await apiAuthRequest<{ id: string }>(`/announcements/${announcementId}`, {
+      method: 'DELETE',
+    });
+
+    setAnnouncements((prev) => prev.filter((a) => String(a.id) !== String(announcementId)));
+  };
+
+  const toggleHideAnnouncement = async (announcementId: number | string, hidden: boolean) => {
+    // No backend hide endpoint currently — persist locally so hidden items can be shown in a separate tab.
+    setAnnouncements((prev) =>
+      prev.map((a) =>
+        String(a.id) === String(announcementId) ? { ...a, hidden } : a,
+      ),
+    );
   };
 
   const createFeeTransaction = async (transaction: FeeTransaction) => {
@@ -1200,5 +1223,7 @@ export const useAdminData = () => {
     updatePlannerAllocation,
     deletePlannerAllocation,
     fetchAllPlannerAllocations,
+    deleteAnnouncement,
+    toggleHideAnnouncement,
   } as const;
 };

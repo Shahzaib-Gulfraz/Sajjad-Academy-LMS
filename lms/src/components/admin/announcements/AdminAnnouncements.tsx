@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Announcement, Student } from "@/types/domain";
-import TeacherAnnouncements from "@/components/teacher/announcements/TeacherAnnouncements";
+import TeacherAnnouncements from "../../teacher/announcements/TeacherAnnouncements.tsx";
 import { ApiRequestError, apiAuthRequest } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -11,6 +11,8 @@ type BackendAnnouncement = {
   content: string;
   priority: "low" | "medium" | "high";
   authorName: string;
+  authorRole?: string;
+  hidden?: boolean;
   publishedAt: string;
 };
 
@@ -24,11 +26,14 @@ const mapAnnouncement = (
   fallbackIndex: number
 ): Announcement => ({
   id: toNumber(announcement.id, fallbackIndex + 1),
+  backendId: announcement.id,
   title: announcement.title,
   date: announcement.publishedAt.slice(0, 10),
   priority: announcement.priority,
   content: announcement.content,
   author: announcement.authorName,
+  authorRole: announcement.authorRole,
+  hidden: announcement.hidden ?? false,
 });
 
 interface Props {
@@ -54,12 +59,28 @@ const AdminAnnouncements = ({
   return (
     <TeacherAnnouncements
       senderName="Admin Office"
+      adminMergedBox={true}
+      sendSectionTitle="Admin Announcement"
+      receivedSectionTitle="Announcement"
+      receivedAdminSectionTitle="Admin Announcements"
+      receivedTeacherSectionTitle="Teacher Announcements"
       classes={classes}
       students={students}
       receivedAnnouncements={receivedAnnouncements}
       allStudentsLabel="All Students"
-      hideReceived={false} // Show the history here
+      hideReceived={false}
       lockTargetAll={false}
+      onDeleteAnnouncement={async (id) => {
+        try {
+          const announcement = announcements.find((item) => String(item.id) === String(id));
+          const backendId = announcement?.backendId ?? String(id);
+          await apiAuthRequest<{ id: string }>(`/announcements/${backendId}`, { method: 'DELETE' });
+          onAnnouncementsChange((prev) => prev.filter((a) => String(a.id) !== String(id)));
+          toast.success('Announcement deleted.');
+        } catch (err) {
+          toast.error('Failed to delete announcement.');
+        }
+      }}
       onAnnouncementCreated={async (announcement, target) => {
         try {
           const created = await apiAuthRequest<BackendAnnouncement>("/announcements", {

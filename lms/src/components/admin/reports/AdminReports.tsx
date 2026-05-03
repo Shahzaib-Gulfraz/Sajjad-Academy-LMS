@@ -47,20 +47,28 @@ type BackendReportsOverview = {
   meta: { generatedAt: string };
 };
 
+type BackendClass = {
+  id: string;
+  name: string;
+};
+
 const COLORS = ["hsl(var(--primary))", "#82ca9d", "#ffc658", "#ff8042", "#8884d8"];
 
 const AdminReports = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState<BackendReportsOverview | null>(null);
+  const [activeClassNames, setActiveClassNames] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchReports = async () => {
       try {
         setIsLoading(true);
-        const response = await apiAuthRequest<BackendReportsOverview>(
-          "/reports/overview"
-        );
+        const [response, classes] = await Promise.all([
+          apiAuthRequest<BackendReportsOverview>("/reports/overview"),
+          apiAuthRequest<BackendClass[]>("/classes").catch(() => []),
+        ]);
         setData(response);
+        setActiveClassNames(classes.map((item) => item.name));
       } catch (error) {
         const message =
           error instanceof ApiRequestError
@@ -87,9 +95,13 @@ const AdminReports = () => {
   };
 
   const monthlyCollection = data?.monthlyCollection || [];
-  const pendingDuesByClass = data?.pendingDuesByClass || [];
+  const pendingDuesByClass = (data?.pendingDuesByClass || []).filter((row) =>
+    activeClassNames.length > 0 ? activeClassNames.includes(row.className) : true,
+  );
   const teacherWorkload = data?.teacherWorkload || [];
-  const attendanceTrends = data?.attendanceTrends || [];
+  const attendanceTrends = (data?.attendanceTrends || []).filter((row) =>
+    activeClassNames.length > 0 ? activeClassNames.includes(row.className) : true,
+  );
   const gradeDistribution = data?.gradeDistribution || [];
 
   // Custom tooltip for charts

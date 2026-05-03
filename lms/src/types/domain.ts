@@ -47,11 +47,14 @@ export interface Student {
 
 export interface Announcement {
   id: number;
+  backendId?: string;
   title: string;
   date: string;
   priority?: string;
   content: string;
   author?: string;
+  authorRole?: string;
+  hidden?: boolean;
 }
 
 export type AnnouncementTarget = {
