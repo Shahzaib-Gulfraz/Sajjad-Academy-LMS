@@ -89,6 +89,7 @@ const AdminPortal = () => {
     deleteClassSubject,
     updateClassSubject,
     fetchPlannerAllocations,
+    fetchAllPlannerAllocations,
     createPlannerAllocation,
     updatePlannerAllocation,
     deletePlannerAllocation,
@@ -307,6 +308,7 @@ const AdminPortal = () => {
             onAllocationsChange={setPlannerAllocations}
             classSubjectOptions={transformedClassSubjects}
             onLoadWeek={fetchPlannerAllocations}
+            onLoadAll={fetchAllPlannerAllocations}
             onCreateAllocation={createPlannerAllocation}
             onUpdateAllocation={updatePlannerAllocation}
             onDeleteAllocation={deletePlannerAllocation}

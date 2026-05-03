@@ -11,6 +11,7 @@ interface Props {
   classSubjectOptions?: Record<string, string[]>;
   onAllocationsChange: (next: PlannerAllocation[]) => void;
   onLoadWeek?: (args: { weekStart: string; weekEnd: string }) => Promise<PlannerAllocation[]>;
+  onLoadAll?: () => Promise<PlannerAllocation[]>;
   onCreateAllocation?: (slot: {
     startDate: string;
     endDate: string;
@@ -60,7 +61,9 @@ const toPlannerDay = (dateValue: string): PlannerAllocation["day"] => {
 const getWeekRange = (baseDate: string) => {
   const date = new Date(`${baseDate}T00:00:00`);
   const day = date.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
+  // Treat Sunday as the start of the following week so selecting a Sunday
+  // advances the view to the upcoming Monday (more intuitive for admins).
+  const diffToMonday = day === 0 ? 1 : 1 - day;
   const weekStart = new Date(date);
   weekStart.setDate(date.getDate() + diffToMonday);
   const weekEnd = new Date(weekStart);
@@ -92,6 +95,7 @@ const AdminTimetablePlanner = ({
   classSubjectOptions = {},
   onAllocationsChange,
   onLoadWeek,
+  onLoadAll,
   onCreateAllocation,
   onUpdateAllocation,
   onDeleteAllocation,
@@ -110,6 +114,8 @@ const AdminTimetablePlanner = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const weekRange = useMemo(() => getWeekRange(startDate), [startDate]);
+  // Default to showing all slots so admins immediately see stored allocations
+  const [showAllSlots, setShowAllSlots] = useState(true);
 
   const classSpecificSubjects = useMemo(() => {
     if (!className) return [];
@@ -185,14 +191,15 @@ const AdminTimetablePlanner = ({
     [allocations],
   );
 
-  const displayedAllocations = useMemo(
-    () =>
-      sortedAllocations.filter((slot) => {
-        const slotDate = slot.date ?? "";
-        return slotDate >= weekRange.weekStart && slotDate <= weekRange.weekEnd;
-      }),
-    [sortedAllocations, weekRange.weekEnd, weekRange.weekStart],
-  );
+  const displayedAllocations = useMemo(() => {
+    if (showAllSlots) return sortedAllocations;
+    // Show allocations that overlap the current week using start/end dates
+    return sortedAllocations.filter((slot) => {
+      const slotStart = slot.startDate ?? slot.date ?? "";
+      const slotEnd = slot.endDate ?? slot.date ?? "";
+      return slotStart <= weekRange.weekEnd && slotEnd >= weekRange.weekStart;
+    });
+  }, [sortedAllocations, weekRange.weekEnd, weekRange.weekStart, showAllSlots]);
 
   const missingCoursesForClass =
     className.length > 0 && (classSubjectOptions[className] ?? []).length === 0;
@@ -235,6 +242,25 @@ const AdminTimetablePlanner = ({
       setIsWeekLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!showAllSlots) return;
+    // If parent provided a load-all handler, use it to fetch all slots from backend
+    const loadAll = async () => {
+      if (!onLoadAll) return;
+      setIsWeekLoading(true);
+      try {
+        const rows = await onLoadAll();
+        onAllocationsChange(rows);
+      } catch {
+        toast.error("Failed to load all timetable slots from server.");
+      } finally {
+        setIsWeekLoading(false);
+      }
+    };
+
+    void loadAll();
+  }, [showAllSlots, onLoadAll, onAllocationsChange]);
 
   const applyAllocation = async () => {
     if (isSaving) return;
@@ -296,7 +322,10 @@ const AdminTimetablePlanner = ({
     try {
       if (editingId) {
         if (onUpdateAllocation) {
-          await onUpdateAllocation(editingId, payload);
+          const updated = await onUpdateAllocation(editingId, payload);
+          onAllocationsChange(
+            allocations.map((slot) => (slot.id === editingId ? updated : slot)),
+          );
         } else {
           onAllocationsChange(
             allocations.map((slot) =>
@@ -322,7 +351,8 @@ const AdminTimetablePlanner = ({
         toast.success("Allocation updated.");
       } else {
         if (onCreateAllocation) {
-          await onCreateAllocation(payload);
+          const created = await onCreateAllocation(payload);
+          onAllocationsChange([created, ...allocations]);
         } else {
           const next: PlannerAllocation = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -435,6 +465,14 @@ const AdminTimetablePlanner = ({
             <span className="inline-flex items-center rounded-full border border-border/80 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
               {activeClasses} active class{activeClasses === 1 ? "" : "es"}
             </span>
+            <button
+              onClick={() => setShowAllSlots((v) => !v)}
+              className={`ml-2 inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                showAllSlots ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground'
+              }`}
+            >
+              {showAllSlots ? 'Showing All' : 'Show All'}
+            </button>
           </div>
         </div>
       </div>
@@ -643,9 +681,11 @@ const AdminTimetablePlanner = ({
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-[0_12px_30px_-20px_hsl(var(--foreground)/0.45)]">
-        <div className="flex flex-col gap-2 border-b border-border/80 bg-muted/25 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 border-b border-border/80 bg-muted/25 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {displayedAllocations.length} allocation{displayedAllocations.length === 1 ? "" : "s"} for {weekBadgeText}.
+            {showAllSlots
+              ? `Showing ${displayedAllocations.length} allocation${displayedAllocations.length === 1 ? "" : "s"} (All)`
+              : `Showing ${displayedAllocations.length} allocation${displayedAllocations.length === 1 ? "" : "s"} for ${weekBadgeText}`}
           </p>
           <p className="text-xs text-muted-foreground">Tap a row action to edit or remove a slot.</p>
         </div>

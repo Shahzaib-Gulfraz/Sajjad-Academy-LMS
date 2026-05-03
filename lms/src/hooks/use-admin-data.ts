@@ -478,6 +478,16 @@ export const useAdminData = () => {
     return mapped;
   };
 
+  const fetchAllPlannerAllocations = async () => {
+    const rows = await apiAuthRequest<BackendTimetableSlot[]>(`/timetable/slots`);
+    const backendTeacherToNumeric = Object.fromEntries(
+      Object.entries(teacherIdMap).map(([numericId, backendId]) => [backendId, Number(numericId)]),
+    );
+    const mapped = rows.map((slot) => mapBackendSlotToPlanner(slot, backendTeacherToNumeric));
+    setPlannerAllocations(mapped);
+    return mapped;
+  };
+
   const createPlannerAllocation = async (slot: {
     startDate: string;
     endDate: string;
@@ -1189,5 +1199,6 @@ export const useAdminData = () => {
     createPlannerAllocation,
     updatePlannerAllocation,
     deletePlannerAllocation,
+    fetchAllPlannerAllocations,
   } as const;
 };
