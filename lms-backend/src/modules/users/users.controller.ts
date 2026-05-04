@@ -11,6 +11,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateIdentityDto } from './dto/update-identity.dto';
 import { UserProfileResponseDto } from './dto/users-response.dto';
 import { ApiCommonErrorResponses } from '../../common/swagger/api-error-responses.decorator';
 
@@ -41,6 +42,20 @@ export class UsersController {
     @Body() dto: UpdateProfileDto,
   ) {
     const updated = await this.usersService.updateProfile(user.sub, dto);
+    return {
+      data: this.usersService.sanitizeUser(updated),
+    };
+  }
+
+  @Patch('me/identity')
+  @ApiOperation({ summary: 'Update current user identity (systemId / email / name)' })
+  @ApiBody({ type: UpdateIdentityDto })
+  @ApiOkResponse({ type: UserProfileResponseDto })
+  async updateIdentity(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateIdentityDto,
+  ) {
+    const updated = await this.usersService.updateIdentity(user.sub, dto);
     return {
       data: this.usersService.sanitizeUser(updated),
     };

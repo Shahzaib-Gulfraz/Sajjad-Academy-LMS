@@ -4,6 +4,8 @@ import { UserRole } from '../../../common/auth/roles.enum';
 class UserProfileDto {
   @ApiProperty()
   id!: string;
+  @ApiProperty({ required: false, nullable: true })
+  systemId?: string;
 
   @ApiProperty()
   name!: string;

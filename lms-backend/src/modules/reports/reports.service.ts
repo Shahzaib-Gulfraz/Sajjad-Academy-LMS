@@ -19,6 +19,7 @@ import {
   GradebookEntry,
   GradebookEntryDocument,
 } from '../gradebook/schemas/gradebook-entry.schema';
+import { SchoolClass, SchoolClassDocument } from '../classes/schemas/class.schema';
 
 @Injectable()
 export class ReportsService {
@@ -35,6 +36,8 @@ export class ReportsService {
     private readonly feeInvoiceModel: Model<FeeInvoiceDocument>,
     @InjectModel(GradebookEntry.name)
     private readonly gradebookModel: Model<GradebookEntryDocument>,
+    @InjectModel(SchoolClass.name)
+    private readonly classModel: Model<SchoolClassDocument>,
   ) {}
 
   async getOverview() {
@@ -54,9 +57,12 @@ export class ReportsService {
       this.gradebookModel.find().lean().exec(),
     ]);
 
-    const studentGradeMap = new Map<string, string>();
-    for (const student of students) {
-      studentGradeMap.set(student.admissionNo, student.grade.toString());
+    // Build a map of class ObjectId -> class name so reports use readable names
+    const classes = await this.classModel.find().lean().exec();
+    const classNameMap = new Map<string, string>();
+    for (const c of classes) {
+      // @ts-ignore - c._id may be ObjectId
+      classNameMap.set(c._id.toString(), c.name);
     }
 
     const totalStudents = students.length;
@@ -118,17 +124,28 @@ export class ReportsService {
       { students: number; pending: number }
     >();
     for (const student of students) {
-      const totalDue = dueByStudent.get(student.admissionNo) ?? 0;
-      const totalPaid = paidByStudent.get(student.admissionNo) ?? 0;
+      // Fees data can be keyed by backend student document ID or admissionNo.
+      const studentDocId = student._id.toString();
+      const totalDue =
+        dueByStudent.get(studentDocId) ??
+        dueByStudent.get(student.admissionNo) ??
+        0;
+      const totalPaid =
+        paidByStudent.get(studentDocId) ??
+        paidByStudent.get(student.admissionNo) ??
+        0;
       const pending = Math.max(0, totalDue - totalPaid);
 
-      const current = pendingByClass.get(student.grade.toString()) ?? {
+      const gradeId = student.grade?.toString();
+      const resolvedClassName = classNameMap.get(gradeId) ?? gradeId ?? 'Unknown';
+
+      const current = pendingByClass.get(resolvedClassName) ?? {
         students: 0,
         pending: 0,
       };
       current.students += 1;
       current.pending += pending;
-      pendingByClass.set(student.grade.toString(), current);
+      pendingByClass.set(resolvedClassName, current);
     }
 
     const pendingDuesByClass = Array.from(pendingByClass.entries())

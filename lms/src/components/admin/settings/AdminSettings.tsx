@@ -17,6 +17,7 @@ import { backendRoleToAppRole, saveAuthSession } from "@/lib/auth";
 
 type ProfileUser = {
   id: string;
+  systemId?: string;
   name: string;
   email: string;
   role: "ADMIN" | "TEACHER" | "STUDENT";
@@ -32,7 +33,7 @@ const AdminSettings = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [displayName, setDisplayName] = useState(session?.user.name ?? "");
+  const [systemId, setSystemId] = useState(session?.user.systemId ?? "");
   
   const [formData, setFormData] = useState({
     currentPassword: "",
@@ -41,8 +42,8 @@ const AdminSettings = () => {
   });
 
   useEffect(() => {
-    setDisplayName(session?.user.name ?? "");
-  }, [session?.user.name]);
+    setSystemId(session?.user.systemId ?? "");
+  }, [session?.user.systemId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -117,36 +118,36 @@ const AdminSettings = () => {
   const handleUpdateName = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const name = displayName.trim();
-    if (name.length < 2) {
+    const nextId = systemId.trim();
+    if (nextId.length < 3) {
       toast({
         title: "Error",
-        description: "Username must be at least 2 characters long.",
+        description: "User ID must be at least 3 characters long.",
         variant: "destructive",
       });
       return;
     }
 
-    if (name === (session?.user.name ?? "")) {
+    if (nextId === (session?.user.systemId ?? "")) {
       toast({
         title: "No Changes",
-        description: "Username is already up to date.",
+        description: "User ID is already up to date.",
       });
       return;
     }
 
     setIsUpdatingName(true);
     try {
-      const updatedUser = await apiAuthRequest<ProfileUser>("/users/me/profile", {
+      const updatedUser = await apiAuthRequest<ProfileUser>("/users/me/identity", {
         method: "PATCH",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ systemId: nextId }),
       });
 
       if (session) {
         const nextSession = saveAuthSession({
           user: {
             ...session.user,
-            name: updatedUser.name,
+            systemId: updatedUser.systemId ?? session.user.systemId,
           },
           expiresAt: session.expiresAt,
         });
@@ -165,13 +166,13 @@ const AdminSettings = () => {
 
       toast({
         title: "Success",
-        description: "Username updated successfully.",
+        description: "User ID updated successfully.",
       });
     } catch (error: unknown) {
       const description =
         error instanceof ApiRequestError
           ? error.message
-          : "Failed to update username.";
+          : "Failed to update User ID.";
 
       toast({
         title: "Error",
@@ -198,12 +199,12 @@ const AdminSettings = () => {
         <CardContent>
           <form onSubmit={handleUpdateName} className="space-y-4 pb-6 border-b border-border mb-6">
             <div className="space-y-2">
-              <Label htmlFor="displayName">Username</Label>
+              <Label htmlFor="systemId">User ID</Label>
               <Input
-                id="displayName"
-                name="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                id="systemId"
+                name="systemId"
+                value={systemId}
+                onChange={(e) => setSystemId(e.target.value)}
                 required
               />
             </div>
@@ -216,10 +217,10 @@ const AdminSettings = () => {
               {isUpdatingName ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating Username...
+                  Updating User ID...
                 </>
               ) : (
-                "Update Username"
+                "Update User ID"
               )}
             </Button>
           </form>

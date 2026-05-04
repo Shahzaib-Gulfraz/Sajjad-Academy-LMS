@@ -20,6 +20,7 @@ import {
   GradebookEntry,
   GradebookEntrySchema,
 } from '../gradebook/schemas/gradebook-entry.schema';
+import { SchoolClass, SchoolClassSchema } from '../classes/schemas/class.schema';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import {
       { name: FeeTransaction.name, schema: FeeTransactionSchema },
       { name: FeeInvoice.name, schema: FeeInvoiceSchema },
       { name: GradebookEntry.name, schema: GradebookEntrySchema },
+      { name: SchoolClass.name, schema: SchoolClassSchema },
     ]),
   ],
   controllers: [ReportsController],
