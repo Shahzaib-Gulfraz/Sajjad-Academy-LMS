@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiAuthRequest } from "@/lib/api";
+import useTimetableSlots from "@/hooks/use-timetable-slots";
 import { loadAuthSession } from "@/lib/auth";
 import type { Teacher, Course, Student } from "@/types/domain";
 
@@ -174,6 +175,8 @@ const mapClass = (classItem: BackendClass, teacher: Teacher, index: number): Cou
 });
 
 export const useTeacherData = (teacher: Teacher) => {
+  const timetableQuery = useTimetableSlots({ teacherId: teacher.backendId });
+
   return useQuery({
     queryKey: ["teacher-data", teacher.id],
     queryFn: async () => {
@@ -200,9 +203,8 @@ export const useTeacherData = (teacher: Teacher) => {
         ),
         apiAuthRequest<AssignmentSubmission[]>("/assignments/submissions/list"),
         apiAuthRequest<QuizSubmission[]>("/quizzes/submissions/list"),
-        apiAuthRequest<BackendTimetableSlot[]>(
-          teacher.backendId ? `/timetable/slots?teacherId=${teacher.backendId}` : "/timetable/slots",
-        ),
+        // timetable handled by shared hook to avoid duplicate requests
+        Promise.resolve([]),
         apiAuthRequest<BackendGradebookEntry[]>(
           authTeacherId
             ? `/gradebook/entries?teacherId=${encodeURIComponent(authTeacherId)}&page=1&pageSize=200`
@@ -230,7 +232,7 @@ export const useTeacherData = (teacher: Teacher) => {
         quizzes: quizzesResult.status === "fulfilled" ? quizzesResult.value : [],
         assignmentSubmissions: assignmentSubmissionsResult.status === "fulfilled" ? assignmentSubmissionsResult.value : [],
         quizSubmissions: quizSubmissionsResult.status === "fulfilled" ? quizSubmissionsResult.value : [],
-        timetableSlots: timetableResult.status === "fulfilled" ? timetableResult.value : [],
+        timetableSlots: timetableQuery.data ?? [],
         gradebookEntries: gradebookResult.status === "fulfilled" ? gradebookResult.value : [],
         backendCourses: coursesResult.status === "fulfilled" ? coursesResult.value : [],
       };

@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { cambridgeGradeColor, percentageToCambridgeGrade } from "@/lib/grades";
 import { useTeacherQuizzes } from "@/hooks/use-teacher-quizzes";
 import { apiAuthRequest } from "@/lib/api";
+import useTimetableSlots from '@/hooks/use-timetable-slots';
 
 interface Props {
   teacher: Teacher;
@@ -168,16 +169,18 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
   const pendingGrading = statsData?.pendingGrading ?? 0;
   const pendingLeaves = statsData?.pendingLeaves ?? 0;
 
+  const timetableQuery = useTimetableSlots({});
+
   const { data: detailData, isLoading: studentDetailLoading } = useQuery({
     queryKey: ["teacher-student-detail", selectedStudent?.backendId],
     queryFn: async () => {
       if (!selectedStudent?.backendId) return emptyStudentDetail;
-
       const [
         attendanceResult,
         gradebookResult,
         assignmentsResult,
         submissionsResult,
+        // timetable handled by centralized hook
         timetableResult,
       ] = await Promise.allSettled([
         apiAuthRequest<BackendAttendanceItem[]>(
@@ -192,7 +195,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
         apiAuthRequest<BackendAssignmentSubmission[]>(
           `/assignments/submissions/list?studentId=${encodeURIComponent(selectedStudent.backendId)}`,
         ),
-        apiAuthRequest<BackendTimetableSlot[]>("/timetable/slots"),
+        Promise.resolve([]),
       ]);
 
       const attendanceItems =
@@ -203,14 +206,9 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
         assignmentsResult.status === "fulfilled" ? assignmentsResult.value : [];
       const submissions =
         submissionsResult.status === "fulfilled" ? submissionsResult.value : [];
-      const timetableItems =
-        timetableResult.status === "fulfilled"
-          ? timetableResult.value.filter(
-              (slot) =>
-                slot.className === selectedStudent.grade &&
-                (!teacher.backendId || slot.teacherId === teacher.backendId),
-            )
-          : [];
+      const timetableItems = (timetableQuery.data ?? []).filter(
+        (slot) => slot.className === selectedStudent.grade && (!teacher.backendId || slot.teacherId === teacher.backendId),
+      );
 
       const attendanceSummary = attendanceItems.reduce(
         (summary, session) => {

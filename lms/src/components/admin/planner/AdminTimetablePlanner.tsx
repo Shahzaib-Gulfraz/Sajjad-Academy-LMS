@@ -10,8 +10,6 @@ interface Props {
   subjectOptions: string[];
   classSubjectOptions?: Record<string, string[]>;
   onAllocationsChange: (next: PlannerAllocation[]) => void;
-  onLoadWeek?: (args: { weekStart: string; weekEnd: string }) => Promise<PlannerAllocation[]>;
-  onLoadAll?: () => Promise<PlannerAllocation[]>;
   onCreateAllocation?: (slot: {
     startDate: string;
     endDate: string;
@@ -94,8 +92,6 @@ const AdminTimetablePlanner = ({
   subjectOptions,
   classSubjectOptions = {},
   onAllocationsChange,
-  onLoadWeek,
-  onLoadAll,
   onCreateAllocation,
   onUpdateAllocation,
   onDeleteAllocation,
@@ -109,13 +105,10 @@ const AdminTimetablePlanner = ({
   const [subject, setSubject] = useState("");
   const [teacherId, setTeacherId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isWeekLoading, setIsWeekLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const weekRange = useMemo(() => getWeekRange(startDate), [startDate]);
-  // Default to showing all slots so admins immediately see stored allocations
-  const [showAllSlots, setShowAllSlots] = useState(true);
 
   const classSpecificSubjects = useMemo(() => {
     if (!className) return [];
@@ -191,15 +184,7 @@ const AdminTimetablePlanner = ({
     [allocations],
   );
 
-  const displayedAllocations = useMemo(() => {
-    if (showAllSlots) return sortedAllocations;
-    // Show allocations that overlap the current week using start/end dates
-    return sortedAllocations.filter((slot) => {
-      const slotStart = slot.startDate ?? slot.date ?? "";
-      const slotEnd = slot.endDate ?? slot.date ?? "";
-      return slotStart <= weekRange.weekEnd && slotEnd >= weekRange.weekStart;
-    });
-  }, [sortedAllocations, weekRange.weekEnd, weekRange.weekStart, showAllSlots]);
+  const displayedAllocations = sortedAllocations;
 
   const missingCoursesForClass =
     className.length > 0 && (classSubjectOptions[className] ?? []).length === 0;
@@ -230,37 +215,6 @@ const AdminTimetablePlanner = ({
     setSubject("");
     setTeacherId("");
   };
-
-  const loadWeek = async (baseDate: string) => {
-    if (!onLoadWeek) return;
-    setIsWeekLoading(true);
-    try {
-      await onLoadWeek(getWeekRange(baseDate));
-    } catch {
-      toast.error("Failed to load timetable week from server.");
-    } finally {
-      setIsWeekLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!showAllSlots) return;
-    // If parent provided a load-all handler, use it to fetch all slots from backend
-    const loadAll = async () => {
-      if (!onLoadAll) return;
-      setIsWeekLoading(true);
-      try {
-        const rows = await onLoadAll();
-        onAllocationsChange(rows);
-      } catch {
-        toast.error("Failed to load all timetable slots from server.");
-      } finally {
-        setIsWeekLoading(false);
-      }
-    };
-
-    void loadAll();
-  }, [showAllSlots, onLoadAll, onAllocationsChange]);
 
   const applyAllocation = async () => {
     if (isSaving) return;
@@ -420,18 +374,11 @@ const AdminTimetablePlanner = ({
     return `${day} ${value}`;
   };
 
-  const weekBadgeText = `${formattedDate(weekRange.weekStart)} to ${formattedDate(weekRange.weekEnd)}`;
-
   const formatRangeLabel = (from?: string, to?: string) => {
     if (!from) return "—";
     if (!to || from === to) return formattedDate(from);
     return `${formattedDate(from)} to ${formattedDate(to)}`;
   };
-
-  const activeClasses = useMemo(
-    () => new Set(displayedAllocations.map((slot) => slot.className)).size,
-    [displayedAllocations],
-  );
 
   const formInputClass =
     "h-11 w-full rounded-xl border border-border/80 bg-background/90 px-3 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground/80 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
@@ -455,25 +402,6 @@ const AdminTimetablePlanner = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full border border-border/80 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-              Week: {weekBadgeText}
-            </span>
-            <span className="inline-flex items-center rounded-full border border-border/80 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-              {displayedAllocations.length} slot{displayedAllocations.length === 1 ? "" : "s"}
-            </span>
-            <span className="inline-flex items-center rounded-full border border-border/80 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-              {activeClasses} active class{activeClasses === 1 ? "" : "es"}
-            </span>
-            <button
-              onClick={() => setShowAllSlots((v) => !v)}
-              className={`ml-2 inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                showAllSlots ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground'
-              }`}
-            >
-              {showAllSlots ? 'Showing All' : 'Show All'}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -481,7 +409,7 @@ const AdminTimetablePlanner = ({
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold text-foreground">Create Allocation</h2>
           <p className="text-xs text-muted-foreground">
-            {isWeekLoading ? "Loading selected week..." : "All fields use 15-minute intervals."}
+            All fields use 15-minute intervals.
           </p>
         </div>
 
@@ -491,10 +419,7 @@ const AdminTimetablePlanner = ({
             <input
               type="date"
               value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                void loadWeek(e.target.value);
-              }}
+              onChange={(e) => setStartDate(e.target.value)}
               className={formInputClass}
               title="Start date picker"
             />
@@ -683,9 +608,7 @@ const AdminTimetablePlanner = ({
       <section className="overflow-hidden rounded-2xl border border-border/80 bg-card/95 shadow-[0_12px_30px_-20px_hsl(var(--foreground)/0.45)]">
           <div className="flex flex-col gap-2 border-b border-border/80 bg-muted/25 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            {showAllSlots
-              ? `Showing ${displayedAllocations.length} allocation${displayedAllocations.length === 1 ? "" : "s"} (All)`
-              : `Showing ${displayedAllocations.length} allocation${displayedAllocations.length === 1 ? "" : "s"} for ${weekBadgeText}`}
+            {`Showing ${displayedAllocations.length} allocation${displayedAllocations.length === 1 ? "" : "s"} (All)`}
           </p>
           <p className="text-xs text-muted-foreground">Tap a row action to edit or remove a slot.</p>
         </div>

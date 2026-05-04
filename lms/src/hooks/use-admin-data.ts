@@ -287,17 +287,13 @@ export const useAdminData = () => {
 
     const loadAdminData = async () => {
       try {
-        const { weekStart, weekEnd } = getWeekRange();
-        const [studentRes, teacherRes, announcementRes, transactionRes, classRes, duesRes, timetableRes] = await Promise.all([
+        const [studentRes, teacherRes, announcementRes, transactionRes, classRes, duesRes] = await Promise.all([
           apiAuthRequest<BackendStudent[]>("/students"),
           apiAuthRequest<BackendTeacher[]>("/teachers"),
           apiAuthRequest<BackendAnnouncement[]>("/announcements"),
           apiAuthRequest<BackendFeeTransaction[]>("/fees/transactions"),
           apiAuthRequest<BackendClass[]>('/classes'),
           apiAuthRequest<BackendFeeDuesItem[]>('/fees/reports/dues'),
-          apiAuthRequest<BackendTimetableSlot[]>(
-            `/timetable/slots?weekStart=${weekStart}&weekEnd=${weekEnd}`,
-          ).catch(() => []),
         ]);
 
         if (!mounted) return;
@@ -424,9 +420,6 @@ export const useAdminData = () => {
         teacherRes.forEach((teacher, index) => {
           nextTeacherMap[nextTeachers[index].id] = teacher.id;
         });
-        const backendTeacherToNumeric = Object.fromEntries(
-          Object.entries(nextTeacherMap).map(([numericId, backendId]) => [backendId, Number(numericId)]),
-        );
         setTeacherIdMap(nextTeacherMap);
         setTeachers(nextTeachers);
         setAnnouncements(announcementRes.map(mapAnnouncement));
@@ -448,11 +441,6 @@ export const useAdminData = () => {
             } as FeeTransaction;
           }),
         );
-        setPlannerAllocations(
-          timetableRes.map((slot) =>
-            mapBackendSlotToPlanner(slot, backendTeacherToNumeric),
-          ),
-        );
       } catch {
         // Keep existing local fallback state when API calls fail.
       }
@@ -464,7 +452,7 @@ export const useAdminData = () => {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setAnnouncements, setFeeTransactions, setPlannerAllocations, setStudents, setTeachers]);
+  }, [setAnnouncements, setFeeTransactions, setStudents, setTeachers]);
 
   const fetchPlannerAllocations = async (args: {
     weekStart: string;

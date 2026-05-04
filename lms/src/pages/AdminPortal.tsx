@@ -307,11 +307,7 @@ const AdminPortal = () => {
             subjectOptions={subjectOptions}
             onAllocationsChange={setPlannerAllocations}
             classSubjectOptions={transformedClassSubjects}
-            onLoadWeek={fetchPlannerAllocations}
-            onLoadAll={fetchAllPlannerAllocations}
             onCreateAllocation={createPlannerAllocation}
-            onUpdateAllocation={updatePlannerAllocation}
-            onDeleteAllocation={deletePlannerAllocation}
           />
         );
       case "create-class":

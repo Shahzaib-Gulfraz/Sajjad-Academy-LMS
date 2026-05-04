@@ -3,6 +3,7 @@ import { Filter } from "lucide-react";
 import type { Teacher } from "@/types/domain";
 import { toast } from "sonner";
 import { apiAuthRequest } from "@/lib/api";
+import useTimetableSlots from "@/hooks/use-timetable-slots";
 
 type Props = {
   teacher: Teacher;
@@ -22,41 +23,20 @@ type BackendTimetableSlot = {
 
 const TeacherTimetable = ({ teacher, allTeacherClasses = [] }: Props) => {
   const [selectedClass, setSelectedClass] = useState<string>("");
-  const [slots, setSlots] = useState<BackendTimetableSlot[]>([]);
-  const [loading, setLoading] = useState(true);
+  const timetableQuery = useTimetableSlots({ teacherId: teacher.backendId });
+  const slots = timetableQuery.data ?? [];
+  const loading = timetableQuery.isLoading;
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadSlots = async () => {
-      try {
-        setLoading(true);
-        const response = await apiAuthRequest<BackendTimetableSlot[]>(
-          teacher.backendId
-            ? `/timetable/slots?teacherId=${teacher.backendId}`
-            : "/timetable/slots",
-        );
-
-        if (!mounted) return;
-        setSlots(response);
-        setSelectedClass((prev) => prev || teacher.classes?.[0] || response[0]?.className || "");
-      } catch (error) {
-        if (mounted) {
-          setSlots([]);
-          toast.error(
-            error instanceof Error ? error.message : "Failed to load timetable.",
-          );
-        }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void loadSlots();
-    return () => {
-      mounted = false;
-    };
-  }, [teacher.backendId]);
+    if (slots.length > 0) {
+      setSelectedClass((prev) => prev || teacher.classes?.[0] || slots[0]?.className || "");
+    }
+    if (!timetableQuery.isLoading && slots.length === 0) {
+      // show toast only when loading finished and no slots found
+      toast.error("Failed to load timetable.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timetableQuery.isLoading, slots.length]);
 
   const courses = useMemo(() => {
     const courseSet = new Set<string>();

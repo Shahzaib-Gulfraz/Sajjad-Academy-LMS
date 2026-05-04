@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -13,21 +13,36 @@ import {
 } from "@/components/ui/card";
 import { Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 import { apiAuthRequest, ApiRequestError } from "@/lib/api";
+import { backendRoleToAppRole, saveAuthSession } from "@/lib/auth";
+
+type ProfileUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "TEACHER" | "STUDENT";
+  isActive: boolean;
+};
 
 const AdminSettings = () => {
-  const { logout } = useAuth();
+  const { logout, session } = useAuth();
   const { toast } = useToast();
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [displayName, setDisplayName] = useState(session?.user.name ?? "");
   
   const [formData, setFormData] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
+
+  useEffect(() => {
+    setDisplayName(session?.user.name ?? "");
+  }, [session?.user.name]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -99,6 +114,75 @@ const AdminSettings = () => {
     }
   };
 
+  const handleUpdateName = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const name = displayName.trim();
+    if (name.length < 2) {
+      toast({
+        title: "Error",
+        description: "Username must be at least 2 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (name === (session?.user.name ?? "")) {
+      toast({
+        title: "No Changes",
+        description: "Username is already up to date.",
+      });
+      return;
+    }
+
+    setIsUpdatingName(true);
+    try {
+      const updatedUser = await apiAuthRequest<ProfileUser>("/users/me/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      });
+
+      if (session) {
+        const nextSession = saveAuthSession({
+          user: {
+            ...session.user,
+            name: updatedUser.name,
+          },
+          expiresAt: session.expiresAt,
+        });
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("lms:session-refreshed", {
+              detail: {
+                role: backendRoleToAppRole(nextSession.user.role),
+                session: nextSession,
+              },
+            }),
+          );
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Username updated successfully.",
+      });
+    } catch (error: unknown) {
+      const description =
+        error instanceof ApiRequestError
+          ? error.message
+          : "Failed to update username.";
+
+      toast({
+        title: "Error",
+        description,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingName(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <Card className="border-border">
@@ -112,6 +196,34 @@ const AdminSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <form onSubmit={handleUpdateName} className="space-y-4 pb-6 border-b border-border mb-6">
+            <div className="space-y-2">
+              <Label htmlFor="displayName">Username</Label>
+              <Input
+                id="displayName"
+                name="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isUpdatingName}
+            >
+              {isUpdatingName ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating Username...
+                </>
+              ) : (
+                "Update Username"
+              )}
+            </Button>
+          </form>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="currentPassword">Current Password</Label>

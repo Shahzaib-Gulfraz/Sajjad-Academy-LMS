@@ -11,6 +11,7 @@ export interface TimetableEntry {
   dateRanges?: Map<string, { startDate?: string; endDate?: string }>;
 }
 import { apiAuthRequest } from "@/lib/api";
+import useTimetableSlots from "@/hooks/use-timetable-slots";
 
 type BackendStudent = {
   id: string;
@@ -100,42 +101,34 @@ const mapSlotsToRows = (slots: TimetableSlotView[]): TimetableEntry[] => {
 };
 
 export const useTimetable = () => {
-  const { data: resolvedData = { timetable: [], classNames: new Set<string>() }, isLoading } = useQuery({
-    queryKey: ["student-timetable"],
-    queryFn: async () => {
-      const student = await apiAuthRequest<BackendStudent>("/students/me");
-      const { weekStart, weekEnd } = getCurrentWeekRange();
+  const student = apiAuthRequest<BackendStudent>("/students/me").catch(() => null);
+  // Use centralized hook and current week
+  const { weekStart, weekEnd } = getCurrentWeekRange();
+  const timetableQuery = useTimetableSlots({ weekStart, weekEnd });
 
-      // Fetch timetable slots - backend now returns resolved names!
-      const rows = await apiAuthRequest<BackendTimetableSlot[]>(
-        `/timetable/slots?weekStart=${weekStart}&weekEnd=${weekEnd}&className=${encodeURIComponent(student.grade)}`,
-      );
+  const rows = timetableQuery.data ?? [];
+  const classNames = new Set<string>();
+  const slots = rows
+    .map((slot) => {
+      if (slot.className) classNames.add(slot.className);
+      return {
+        id: slot.id,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        subject: slot.subject,
+        className: slot.className,
+        startDate: slot.startDate,
+        endDate: slot.endDate,
+      };
+    })
+    .filter(Boolean) as TimetableSlotView[];
 
-      // Extract unique class names and map slots
-      const classNames = new Set<string>();
-      const slots = rows.map((slot) => {
-        // Backend already resolved className and subject names
-        if (slot.className) classNames.add(slot.className);
-        return {
-          id: slot.id,
-          date: slot.date,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          subject: slot.subject, // Already resolved by backend
-          className: slot.className, // Already resolved by backend
-          startDate: slot.startDate, // New: Course start date
-          endDate: slot.endDate, // New: Course end date
-        };
-      });
-
-      const timetable = mapSlotsToRows(slots);
-      return { timetable, classNames };
-    },
-  });
+  const timetable = mapSlotsToRows(slots);
 
   return {
-    timetable: resolvedData.timetable,
-    classNames: Array.from(resolvedData.classNames),
-    isLoading,
+    timetable,
+    classNames: Array.from(classNames),
+    isLoading: timetableQuery.isLoading,
   };
 };
