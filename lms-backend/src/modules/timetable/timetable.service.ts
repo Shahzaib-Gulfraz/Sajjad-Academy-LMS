@@ -118,8 +118,15 @@ export class TimetableService {
       }
     }
 
+    // Fetch all teachers to build lookup map for teacher names
+    const teachers = await this.teacherModel.find().exec();
+    const teacherNameMap = new Map<string, string>(); // ObjectId string -> teacher name
+    for (const teacher of teachers) {
+      teacherNameMap.set(teacher._id.toString(), teacher.name);
+    }
+
     // Return slots with resolved names
-    return slots.map((slot) => this.toResponse(slot, classNameMap, subjectNameMap));
+    return slots.map((slot) => this.toResponse(slot, classNameMap, subjectNameMap, teacherNameMap));
   }
 
   async create(dto: CreateTimetableSlotDto) {
@@ -372,10 +379,13 @@ export class TimetableService {
     slot: TimetableSlotDocument,
     classNameMap?: Map<string, string>,
     subjectNameMap?: Map<string, string>,
+    teacherNameMap?: Map<string, string>,
   ) {
     const classNameStr = slot.className.toString();
     const resolvedClassName = classNameMap?.get(classNameStr) || classNameStr;
     const resolvedSubject = subjectNameMap?.get(slot.subject) || slot.subject;
+    const teacherIdStr = slot.teacherId.toString();
+    const resolvedTeacherName = teacherNameMap?.get(teacherIdStr) || teacherIdStr;
 
     return {
       id: slot._id.toString(),
@@ -386,7 +396,8 @@ export class TimetableService {
       endTime: slot.endTime,
       className: resolvedClassName,
       subject: resolvedSubject,
-      teacherId: slot.teacherId.toString(),
+      teacherId: teacherIdStr,
+      teacherName: resolvedTeacherName,
     };
   }
 }

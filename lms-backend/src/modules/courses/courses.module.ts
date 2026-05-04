@@ -9,6 +9,7 @@ import { CoursesService } from './courses.service';
 import { CoursesController } from './courses.controller';
 import { StudentsModule } from '../students/students.module';
 import { Student, StudentSchema } from '../students/schemas/student.schema';
+import { Teacher, TeacherSchema } from '../teachers/schemas/teacher.schema';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Student, StudentSchema } from '../students/schemas/student.schema';
       { name: Course.name, schema: CourseSchema },
       { name: CourseEnrollment.name, schema: CourseEnrollmentSchema },
       { name: Student.name, schema: StudentSchema },
+      { name: Teacher.name, schema: TeacherSchema },
     ]),
     StudentsModule,
   ],

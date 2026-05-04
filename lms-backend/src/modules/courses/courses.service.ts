@@ -384,7 +384,7 @@ export class CoursesService {
     let found = false;
 
     course.chapters = (course.chapters ?? []).map((chapter) => {
-      if (chapter.id !== chapterId) return chapter;
+      if (String(chapter.id) !== String(chapterId)) return chapter;
       found = true;
       return {
         ...chapter,
@@ -411,7 +411,7 @@ export class CoursesService {
   async removeChapter(courseId: string, chapterId: string) {
     const course = await this.getCourseDocument(courseId);
     const nextChapters = (course.chapters ?? []).filter(
-      (chapter) => chapter.id !== chapterId,
+      (chapter) => String(chapter.id) !== String(chapterId),
     );
 
     if (nextChapters.length === (course.chapters ?? []).length) {
@@ -432,7 +432,7 @@ export class CoursesService {
     let foundChapter = false;
 
     course.chapters = (course.chapters ?? []).map((chapter) => {
-      if (chapter.id !== chapterId) return chapter;
+      if (String(chapter.id) !== String(chapterId)) return chapter;
       foundChapter = true;
 
       const nextTopic: CourseTopic = {
@@ -466,11 +466,11 @@ export class CoursesService {
     let foundTopic = false;
 
     course.chapters = (course.chapters ?? []).map((chapter) => {
-      if (chapter.id !== chapterId) return chapter;
+      if (String(chapter.id) !== String(chapterId)) return chapter;
       return {
         ...chapter,
         topics: (chapter.topics ?? []).map((topic) => {
-          if (topic.id !== topicId) return topic;
+          if (String(topic.id) !== String(topicId)) return topic;
           foundTopic = true;
           return {
             ...topic,
@@ -498,9 +498,9 @@ export class CoursesService {
     let removed = false;
 
     course.chapters = (course.chapters ?? []).map((chapter) => {
-      if (chapter.id !== chapterId) return chapter;
+      if (String(chapter.id) !== String(chapterId)) return chapter;
       const nextTopics = (chapter.topics ?? []).filter((topic) => {
-        const keep = topic.id !== topicId;
+        const keep = String(topic.id) !== String(topicId);
         if (!keep) removed = true;
         return keep;
       });
@@ -550,7 +550,7 @@ export class CoursesService {
       let topicFound = false;
 
       course.chapters = (course.chapters ?? []).map((chapter) => {
-        if (chapter.id !== dto.chapterId) return chapter;
+        if (String(chapter.id) !== String(dto.chapterId)) return chapter;
         chapterFound = true;
 
         if (!dto.topicId) {
@@ -563,7 +563,7 @@ export class CoursesService {
         return {
           ...chapter,
           topics: (chapter.topics ?? []).map((topic) => {
-            if (topic.id !== dto.topicId) return topic;
+            if (String(topic.id) !== String(dto.topicId)) return topic;
             topicFound = true;
             return {
               ...topic,
@@ -858,12 +858,13 @@ export class CoursesService {
     const teacher = (course as any).populated('teacherId')
       ? course.teacherId
       : null;
+    const teacherId = course.teacherId ? course.teacherId.toString() : '';
     return {
       id: course._id.toString(),
       name: course.name,
       code: course.code,
       teacher,
-      teacherId: course.teacherId.toString(),
+      teacherId,
       grade: course.grade,
       description: course.description,
       overviewTitle: course.overview?.title ?? course.name,

@@ -137,6 +137,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
 
   const classNameMap = Object.fromEntries((allClasses ?? []).map(c => [c.id, c.name]));
   const displayClassNames = (teacher.classes ?? []).map(id => classNameMap[id] || id);
+  const getClassName = (gradeId: string) => classNameMap[gradeId] || gradeId;
 
   const { data: statsData } = useQuery({
     queryKey: ["teacher-dashboard-stats"],
@@ -306,7 +307,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
       {/* Welcome Header */}
       <div className="text-center sm:text-left">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          Welcome, {teacher.name.split(" ").slice(1).join(" ")}!
+          Welcome, {teacher.name}!
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Subject: {teacher.subject} · Classes: {displayClassNames.join(", ")}
@@ -385,7 +386,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                           {s.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          ID: STU-{String(s.id).padStart(4, "0")} · {s.grade}
+                          ID: STU-{String(s.id).padStart(4, "0")} · {getClassName(s.grade)}
                         </p>
                       </div>
                     </div>
@@ -412,7 +413,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                 <div>
                   <h3 className="font-semibold text-foreground">{selectedStudent.name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    ID: STU-{String(selectedStudent.id).padStart(4, "0")} · {selectedStudent.grade}
+                    ID: STU-{String(selectedStudent.id).padStart(4, "0")} · {getClassName(selectedStudent.grade)}
                   </p>
                 </div>
               </div>
@@ -481,13 +482,13 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                     <div className="rounded-xl bg-muted/20 p-3 border border-border/40">
                       <p className="text-xs text-muted-foreground">Timetable Slots</p>
                       <p className="text-xl font-bold text-foreground mt-1">{studentDetail.timetable.length}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">For {selectedStudent.grade}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">For {getClassName(selectedStudent.grade)}</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <InfoItem icon={Mail} label="Email" value={selectedStudent.email} />
-                    <InfoItem icon={BookOpen} label="Class" value={selectedStudent.grade} />
+                    <InfoItem icon={BookOpen} label="Class" value={getClassName(selectedStudent.grade)} />
                     <InfoItem icon={User} label="Status" value={selectedStudent.status} />
                     <InfoItem icon={User} label="Guardian" value={selectedStudent.guardian} />
                     <InfoItem icon={Phone} label="Guardian Phone" value={selectedStudent.guardianPhone} />
@@ -629,7 +630,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                       {studentDetail.timetable.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="text-center text-muted-foreground py-8">
-                            No timetable slots found for {selectedStudent.grade}.
+                            No timetable slots found for {getClassName(selectedStudent.grade)}.
                           </td>
                         </tr>
                       ) : (

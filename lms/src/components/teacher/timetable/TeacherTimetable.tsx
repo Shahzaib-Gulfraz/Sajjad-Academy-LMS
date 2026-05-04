@@ -38,13 +38,16 @@ const TeacherTimetable = ({ teacher, allTeacherClasses = [] }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timetableQuery.isLoading, slots.length]);
 
+  const classNameMap = Object.fromEntries((allTeacherClasses ?? []).map(c => [c.id, c.name]));
+  const getClassName = (classId: string) => classNameMap[classId] || classId;
+
   const courses = useMemo(() => {
     const courseSet = new Set<string>();
     slots.forEach((slot) => courseSet.add(slot.className));
     // include teacher enrolled classes even if there are no slots for them
     (teacher.classes ?? []).forEach((id) => courseSet.add(id));
     const ids = Array.from(courseSet);
-    const mapped = ids.map((id) => ({ id, label: allTeacherClasses.find((c) => c.id === id)?.name || id }));
+    const mapped = ids.map((id) => ({ id, label: getClassName(id) }));
     return mapped.sort((a, b) => a.label.localeCompare(b.label));
   }, [slots, allTeacherClasses]);
 
@@ -120,7 +123,7 @@ const TeacherTimetable = ({ teacher, allTeacherClasses = [] }: Props) => {
                     <td className="font-medium whitespace-nowrap">
                       {formatDate(row.date)}
                     </td>
-                    <td>{allTeacherClasses.find((c) => c.id === row.className)?.name || row.className}</td>
+                    <td>{getClassName(row.className)}</td>
                     <td>{row.subject}</td>
                     <td className="whitespace-nowrap">
                       {row.startTime} - {row.endTime}
@@ -141,7 +144,7 @@ const TeacherTimetable = ({ teacher, allTeacherClasses = [] }: Props) => {
 
       {selectedClass && (
         <p className="text-sm text-muted-foreground mt-4">
-          Showing only rows for <span className="font-medium text-primary">{allTeacherClasses.find((c) => c.id === selectedClass)?.name || selectedClass}</span>.
+          Showing only rows for <span className="font-medium text-primary">{getClassName(selectedClass)}</span>.
         </p>
       )}
     </div>

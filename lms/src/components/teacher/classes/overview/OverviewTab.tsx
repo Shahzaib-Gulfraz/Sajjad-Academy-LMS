@@ -31,7 +31,7 @@ interface Props {
     thumbnailUrl?: string;
     weeklySchedule?: WeeklyScheduleItem[];
   };
-  onSaveOverview: (payload: any) => void;
+  onSaveOverview: (payload: any) => Promise<void>;
   onAddMaterial: (material: Omit<StudyMaterial, "id">) => void;
   onDeleteMaterial: (materialId: string) => void;
   titleDraft: string;
@@ -134,7 +134,10 @@ const OverviewTab = ({
   );
 
   const canSaveOverview = useMemo(
-    () => isOverviewDirty && overviewDraft.trim().length > 0 && titleDraft.trim().length > 0,
+    () =>
+      isOverviewDirty &&
+      overviewDraft.trim().length >= 10 &&
+      titleDraft.trim().length >= 2,
     [isOverviewDirty, overviewDraft, titleDraft],
   );
 
@@ -202,7 +205,7 @@ const OverviewTab = ({
     return ["pdf", "doc", "docx", "png", "jpg", "jpeg", "webp", "gif", "bmp", "mp4", "webm", "mov"].includes(ext);
   };
 
-  const handleSaveOverview = () => {
+  const handleSaveOverview = async () => {
     if (!canSaveOverview) return;
     const normalizeLines = (value: string) =>
       value
@@ -229,7 +232,6 @@ const OverviewTab = ({
         .filter((slot) => slot.day && slot.startTime && slot.endTime),
       recentMaterials,
     });
-    toast.success("Overview saved.");
   };
 
   const [materialUploading, setMaterialUploading] = useState(false);
