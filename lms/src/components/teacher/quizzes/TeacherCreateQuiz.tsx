@@ -23,6 +23,7 @@ interface Quiz {
   title: string;
   description: string;
   classGrade: string; 
+  courseId?: string;
   chapterName: string;
   topicName: string;
   dueDate: string;
@@ -60,6 +61,7 @@ const TeacherCreateQuiz = ({
     title: "",
     description: "",
     classGrade: "",
+    courseId: "",
     chapterName: "",
     topicName: "",
     dueDate: "",
@@ -71,18 +73,36 @@ const TeacherCreateQuiz = ({
     [classNameMap, quiz.classGrade],
   );
 
-  const matchingCourse = useMemo(() => {
-    if (!selectedClassName) return null;
+  const classCourses = useMemo(() => {
+    if (!quiz.classGrade && !selectedClassName) return [] as BackendCourse[];
+    const nameKey = String(selectedClassName || "").toLowerCase();
+    const idKey = String(quiz.classGrade || "");
 
-    return (
-      backendCourses.find(
-        (course) =>
-          course.grade === selectedClassName ||
-          course.grade === quiz.classGrade ||
-          course.name === selectedClassName,
-      ) ?? null
-    );
+    const candidates = backendCourses.filter((course) => {
+      const courseGrade = String(course.grade || "").toLowerCase();
+      const courseName = String(course.name || "").toLowerCase();
+      return (
+        courseGrade === idKey ||
+        courseGrade === nameKey ||
+        courseName === nameKey ||
+        courseName.includes(nameKey) ||
+        courseGrade.includes(idKey)
+      );
+    });
+
+    if (candidates.length > 0) return candidates;
+    if (nameKey) {
+      return backendCourses.filter((course) => String(course.name || "").toLowerCase().includes(nameKey));
+    }
+    return [] as BackendCourse[];
   }, [backendCourses, quiz.classGrade, selectedClassName]);
+
+  const matchingCourse = useMemo(() => {
+    if (quiz.courseId) {
+      return backendCourses.find((c) => c.id === quiz.courseId) ?? null;
+    }
+    return classCourses[0] ?? null;
+  }, [backendCourses, quiz.courseId, classCourses]);
 
   const chapters = matchingCourse?.chapters ?? [];
   const selectedChapter = chapters.find((chapter) => chapter.chapterName === quiz.chapterName);
@@ -189,14 +209,6 @@ const TeacherCreateQuiz = ({
       toast.error("Please select a class.");
       return;
     }
-    if (!quiz.chapterName.trim()) {
-      toast.error("Please select a chapter.");
-      return;
-    }
-    if (!quiz.topicName.trim()) {
-      toast.error("Please select a topic.");
-      return;
-    }
     if (!quiz.dueDate) {
       toast.error("Please set a due date.");
       return;
@@ -224,6 +236,7 @@ const TeacherCreateQuiz = ({
         teacherName: teacher.name,
         teacherId: teacher.id,
         subject: teacher.subject,
+        courseId: quiz.courseId,
         createdAt: new Date().toISOString(),
       });
       toast.success("Quiz created successfully!");
@@ -300,6 +313,7 @@ const TeacherCreateQuiz = ({
                   setQuiz({
                     ...quiz,
                     classGrade: e.target.value,
+                    courseId: "",
                     chapterName: "",
                     topicName: "",
                   })
@@ -317,6 +331,31 @@ const TeacherCreateQuiz = ({
             </div>
 
             <div>
+              <label htmlFor="course" className="input-label">
+                Course <span className="text-destructive">*</span>
+              </label>
+              <select
+                id="course"
+                value={quiz.courseId}
+                onChange={(e) =>
+                  setQuiz({ ...quiz, courseId: e.target.value, chapterName: "", topicName: "" })
+                }
+                className="select-modern"
+                required
+                disabled={!quiz.classGrade}
+              >
+                <option value="">{quiz.classGrade ? "Select course" : "Select class first"}</option>
+                {classCourses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <label htmlFor="dueDate" className="input-label">
                 Due Date <span className="text-destructive">*</span>
               </label>
@@ -329,21 +368,16 @@ const TeacherCreateQuiz = ({
                 required
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="input-label">
-                Chapter <span className="text-destructive">*</span>
-              </label>
+              <label className="input-label">Chapter (optional)</label>
               <select
                 value={quiz.chapterName}
                 onChange={(e) => setQuiz({ ...quiz, chapterName: e.target.value, topicName: "" })}
                 className="select-modern"
-                required
                 disabled={!matchingCourse}
               >
-                <option value="">{matchingCourse ? "Select chapter" : "Select class first"}</option>
+                <option value="">{matchingCourse ? "Select chapter (optional)" : "Select course first"}</option>
                 {chapters.map((chapter) => (
                   <option key={chapter.id || chapter.chapterName} value={chapter.chapterName}>
                     {chapter.chapterName}
@@ -351,19 +385,18 @@ const TeacherCreateQuiz = ({
                 ))}
               </select>
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
             <div>
-              <label className="input-label">
-                Topic <span className="text-destructive">*</span>
-              </label>
+              <label className="input-label">Topic (optional)</label>
               <select
                 value={quiz.topicName}
                 onChange={(e) => setQuiz({ ...quiz, topicName: e.target.value })}
                 className="select-modern"
-                required
                 disabled={!quiz.chapterName}
               >
-                <option value="">{quiz.chapterName ? "Select topic" : "Select chapter first"}</option>
+                <option value="">{quiz.chapterName ? "Select topic (optional)" : "Select chapter first"}</option>
                 {topics.map((topic) => (
                   <option key={topic.id || topic.topicName} value={topic.topicName}>
                     {topic.topicName}

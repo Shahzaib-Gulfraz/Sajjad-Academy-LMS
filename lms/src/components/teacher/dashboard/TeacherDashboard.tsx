@@ -386,7 +386,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                           {s.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          ID: STU-{String(s.id).padStart(4, "0")} · {getClassName(s.grade)}
+                          {getClassName(s.grade)}
                         </p>
                       </div>
                     </div>
@@ -413,7 +413,7 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                 <div>
                   <h3 className="font-semibold text-foreground">{selectedStudent.name}</h3>
                   <p className="text-xs text-muted-foreground">
-                    ID: STU-{String(selectedStudent.id).padStart(4, "0")} · {getClassName(selectedStudent.grade)}
+                    {getClassName(selectedStudent.grade)}
                   </p>
                 </div>
               </div>
@@ -492,8 +492,6 @@ const TeacherDashboard = ({ teacher, students, allClasses = [], onNavigate }: Pr
                     <InfoItem icon={User} label="Status" value={selectedStudent.status} />
                     <InfoItem icon={User} label="Guardian" value={selectedStudent.guardian} />
                     <InfoItem icon={Phone} label="Guardian Phone" value={selectedStudent.guardianPhone} />
-                    <InfoItem icon={MapPin} label="Student ID" value={`STU-${String(selectedStudent.id).padStart(4, "0")}`} />
-                    <InfoItem icon={Calendar} label="Backend ID" value={selectedStudent.backendId || "Not synced"} />
                   </div>
                 </div>
               )}

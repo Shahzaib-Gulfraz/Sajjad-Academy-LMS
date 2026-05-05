@@ -390,6 +390,7 @@ const TeacherPortal = () => {
         return (
           <AdminAttendance
             students={myStudents.filter((s) => (teacher.classes ?? []).includes(s.grade))}
+            allTeacherClasses={allBackendClasses}
           />
         );
       case "createQuiz":
@@ -397,7 +398,7 @@ const TeacherPortal = () => {
           <TeacherCreateQuiz
             teacher={teacher}
             classNameMap={classNameMap}
-            backendCourses={teacherBackendCourses}
+            backendCourses={allBackendCourses}
           />
         );
       case "checkQuizzes":

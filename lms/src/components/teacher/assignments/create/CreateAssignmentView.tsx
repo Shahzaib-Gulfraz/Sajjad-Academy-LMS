@@ -112,7 +112,6 @@ const CreateAssignmentView = ({
           />
           <div>
             <p className="font-medium">{s.name}</p>
-            <p className="text-xs text-muted-foreground">ID: STU-{String(s.id).padStart(4, "0")}</p>
           </div>
         </div>
         <span className="text-xs text-muted-foreground">{s.grade}</span>
@@ -278,7 +277,7 @@ const CreateAssignmentView = ({
                   onClick={() => handleToggleStudent(s.id)}
                   className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary"
                 >
-                  {s.name} · STU-{String(s.id).padStart(4, "0")}
+                  {s.name}
                 </button>
               ))}
             </div>

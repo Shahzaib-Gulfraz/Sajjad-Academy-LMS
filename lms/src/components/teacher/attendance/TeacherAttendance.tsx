@@ -348,7 +348,7 @@ const TeacherAttendance = ({
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              {["Student", "ID", "Status"].map((head) => (
+              {["Student", "Status"].map((head) => (
                 <th
                   key={head}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -376,9 +376,6 @@ const TeacherAttendance = ({
                   <td className="px-4 py-3 text-sm">
                     <p className="font-medium text-foreground">{student.name}</p>
                     <p className="text-xs text-muted-foreground">{student.guardian}</p>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    STU-{String(student.id).padStart(4, "0")}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">

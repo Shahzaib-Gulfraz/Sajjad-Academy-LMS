@@ -4,6 +4,7 @@ import { statusConfig } from "../utils/constants";
 
 type Props = {
   selectedStudent: Student;
+  className: string;
   subjectOptions: string[];
   activeSubjectFilter: string;
   onSubjectFilterChange: (value: string) => void;
@@ -18,6 +19,7 @@ type Props = {
 
 const AttendanceDetails = ({
   selectedStudent,
+  className,
   subjectOptions,
   activeSubjectFilter,
   onSubjectFilterChange,
@@ -37,7 +39,7 @@ const AttendanceDetails = ({
             {selectedStudent.name} Attendance Records
           </p>
           <p className="text-xs text-muted-foreground">
-            ID {selectedStudent.id} · Class {selectedStudent.grade}
+            Class {className}
           </p>
         </div>
         <button

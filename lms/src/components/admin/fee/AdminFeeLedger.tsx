@@ -52,7 +52,6 @@ const AdminFeeLedger = ({ transactions }: Props) => {
           <div class="row"><span class="label">Receipt No:</span> ${tx.receiptNo}</div>
           <div class="row"><span class="label">Date:</span> ${new Date(tx.transactionDate).toLocaleString()}</div>
           <div class="row"><span class="label">Student:</span> ${tx.studentName}</div>
-          <div class="row"><span class="label">Student ID:</span> STU-${String(tx.studentId).padStart(4, "0")}</div>
           <div class="row"><span class="label">Class:</span> ${tx.className}</div>
           <div class="row"><span class="label">Amount Paid:</span> Rs. ${tx.amount.toLocaleString()}</div>
           <div class="row"><span class="label">Payment Method:</span> ${tx.method}</div>

@@ -475,7 +475,6 @@ const TeacherGradebook = ({
                               <div>
                                 <p className="text-sm font-medium text-foreground">{s.name}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  ID: STU-{String(s.id).padStart(4, "0")}
                                 </p>
                               </div>
                             </div>

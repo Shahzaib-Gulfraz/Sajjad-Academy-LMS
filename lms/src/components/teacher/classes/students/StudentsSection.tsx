@@ -47,7 +47,7 @@ const StudentsSection = ({ classStudents, teacher, expandedStudentId, onToggleSt
                   <div>
                     <p className="font-medium text-foreground">{s.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      ID: STU-{String(s.id).padStart(4, "0")} - Grade: {s.grade}
+                      Grade: {s.grade}
                     </p>
                   </div>
                 </div>

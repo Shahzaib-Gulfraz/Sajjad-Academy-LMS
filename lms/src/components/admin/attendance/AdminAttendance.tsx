@@ -33,7 +33,8 @@ type BackendAttendanceSession = {
 
 const buildLogsFromSubmissions = (
   students: AdminAttendanceProps["students"] = [],
-  submissions: TeacherAttendancePayload[]
+  submissions: TeacherAttendancePayload[],
+  classNameMap: Map<string, string> = new Map(),
 ) => {
   const logs: Record<number, AttendanceRecord[]> = {};
   const backendToStudentId = new Map(
@@ -57,7 +58,7 @@ const buildLogsFromSubmissions = (
         date: payload.date,
         day,
         time: payload.time,
-        className: payload.className,
+        className: classNameMap.get(payload.className) || payload.className,
         status: entry.status,
       });
     });
@@ -86,13 +87,6 @@ const AdminAttendance = ({ students = [], allTeacherClasses = [] }: AdminAttenda
     TeacherAttendancePayload[]
   >([]);
 
-  const attendanceLogs = useMemo(
-    () => buildLogsFromSubmissions(students, teacherSubmissions),
-    [students, teacherSubmissions]
-  );
-
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  
   const classIdToNameMap = useMemo(() => {
     const map = new Map<string, string>();
     allTeacherClasses.forEach((cls) => {
@@ -100,6 +94,13 @@ const AdminAttendance = ({ students = [], allTeacherClasses = [] }: AdminAttenda
     });
     return map;
   }, [allTeacherClasses]);
+
+  const attendanceLogs = useMemo(
+    () => buildLogsFromSubmissions(students, teacherSubmissions, classIdToNameMap),
+    [students, teacherSubmissions, classIdToNameMap]
+  );
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const classOptions = useMemo(() => {
     // Collect all unique class identifiers from students and submissions
@@ -335,6 +336,7 @@ const AdminAttendance = ({ students = [], allTeacherClasses = [] }: AdminAttenda
       {selectedStudent && (
         <AttendanceDetails
           selectedStudent={selectedStudent}
+          className={getClassName(selectedStudent.grade)}
           subjectOptions={subjectOptions}
           activeSubjectFilter={activeSubjectFilter}
           onSubjectFilterChange={setActiveSubjectFilter}

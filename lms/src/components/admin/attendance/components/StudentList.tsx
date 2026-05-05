@@ -38,7 +38,7 @@ const StudentList = ({ students, onSelectStudent, allTeacherClasses = [] }: Prop
             <div>
               <p className="text-sm font-semibold text-foreground">{student.name}</p>
               <p className="text-xs text-muted-foreground">
-                ID {student.id} · Class {getClassName(student.grade)}
+                {getClassName(student.grade)}
               </p>
             </div>
             <span className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-primary/60 hover:text-primary">

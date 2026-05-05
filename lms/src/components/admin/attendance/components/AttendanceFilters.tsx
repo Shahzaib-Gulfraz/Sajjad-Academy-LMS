@@ -43,7 +43,7 @@ const AttendanceFilters = ({
           type="text"
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.target.value)}
-          placeholder="Search by name or student ID"
+          placeholder="Search by name"
           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <p className="text-xs text-muted-foreground">
