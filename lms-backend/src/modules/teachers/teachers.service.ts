@@ -12,7 +12,6 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { UpdateTeacherSelfDto } from './dto/update-teacher-self.dto';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../../common/auth/roles.enum';
-import { Course, CourseDocument } from '../courses/schemas/course.schema';
 import {
   Assignment,
   AssignmentDocument,
@@ -31,14 +30,15 @@ import {
   GradebookEntryDocument,
 } from '../gradebook/schemas/gradebook-entry.schema';
 import { LeaveRequest, LeaveRequestDocument } from '../leaves/schemas/leave-request.schema';
+import { SchoolClass, SchoolClassDocument } from '../classes/schemas/class.schema';
+import { Material, MaterialDocument } from '../materials/schemas/material.schema';
+import { Course, CourseDocument } from '../materials/schemas/courses.schema';
 
 @Injectable()
 export class TeachersService {
   constructor(
     @InjectModel(Teacher.name)
     private readonly teacherModel: Model<TeacherDocument>,
-    @InjectModel(Course.name)
-    private readonly courseModel: Model<CourseDocument>,
     @InjectModel(Assignment.name)
     private readonly assignmentModel: Model<AssignmentDocument>,
     @InjectModel(Quiz.name)
@@ -51,6 +51,12 @@ export class TeachersService {
     private readonly gradebookEntryModel: Model<GradebookEntryDocument>,
     @InjectModel(LeaveRequest.name)
     private readonly leaveModel: Model<LeaveRequestDocument>,
+    @InjectModel(SchoolClass.name)
+    private readonly classModel: Model<SchoolClassDocument>,
+    @InjectModel(Material.name)
+    private readonly materialModel: Model<MaterialDocument>,
+    @InjectModel(Course.name)
+    private readonly courseModel: Model<CourseDocument>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -96,9 +102,8 @@ export class TeachersService {
     return this.toResponse(teacher);
   }
 
-  async findAll(query: { subject?: string; search?: string; status?: string }) {
+  async findAll(query: { search?: string; status?: string }) {
     const filter: Record<string, unknown> = {};
-    if (query.subject) filter.subject = query.subject;
     if (query.status) filter.status = query.status;
     if (query.search) {
       filter.$or = [
@@ -125,6 +130,163 @@ export class TeachersService {
     }
 
     return this.toResponse(teacher);
+  }
+
+  async findMyClassesWithCourses(email: string) {
+    const teacher = await this.teacherModel
+      .findOne({ email: email.toLowerCase() })
+      .exec();
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher profile not found.');
+    }
+
+    const teacherId = teacher._id;
+    const assignedClassIds = (teacher.classes ?? []).map((id) => id.toString());
+
+    const [classes, materialDocs, coursesDocs] = await Promise.all([
+      this.classModel
+        .find({ _id: { $in: assignedClassIds.map((id) => new Types.ObjectId(id)) } })
+        .sort({ name: 1 })
+        .lean()
+        .exec(),
+      this.materialModel
+        .find({
+          classId: { $in: assignedClassIds.map((id) => new Types.ObjectId(id)) },
+        })
+        .lean()
+        .exec(),
+      this.courseModel
+        .find({
+          classId: { $in: assignedClassIds.map((id) => new Types.ObjectId(id)) },
+          teacherId: new Types.ObjectId(teacherId),
+        })
+        .lean()
+        .exec(),
+    ]);
+
+    const overviewByClassId = new Map<string, any>();
+    const materialsByClassId = new Map<string, any[]>();
+    const coursesByKey = new Map<string, any>();
+
+    for (const material of materialDocs) {
+      const classId = String((material as any).classId);
+      const subjectId = String((material as any).subjectId ?? '');
+      const key = `${classId}:${subjectId}`;
+      
+      if ((material as any).scope === 'overview') {
+        const existing = overviewByClassId.get(key);
+        if (!existing || new Date((material as any).updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+          overviewByClassId.set(key, material);
+        }
+      } else {
+        const bucket = materialsByClassId.get(key) ?? [];
+        bucket.push(material);
+        materialsByClassId.set(key, bucket);
+      }
+    }
+
+    for (const course of coursesDocs) {
+      const key = `${(course as any).classId}:${(course as any).subjectId}`;
+      coursesByKey.set(key, course);
+    }
+
+    const classSubjectsMap =
+      teacher.classSubjects as unknown as Map<string, string[]> | Record<string, string[]>;
+
+    return classes.map((cls) => {
+      const classId = cls._id.toString();
+      const className = cls.name;
+      const assignedSubjectIds = new Set(
+        (classSubjectsMap instanceof Map
+          ? classSubjectsMap.get(classId) ?? []
+          : classSubjectsMap?.[classId] ?? []).map((id) => id.toString()),
+      );
+
+      const classSubjects = (cls.subjects ?? [])
+        .filter((subject) => assignedSubjectIds.has(subject.id))
+        .map((subject) => ({
+          id: subject.id,
+          name: subject.name,
+        }));
+
+      const classCourses = classSubjects.map((subject) => {
+        const materialKey = `${classId}:${subject.id}`;
+        const matchedMaterials = materialsByClassId.get(materialKey) ?? [];
+        const matchedOverview = overviewByClassId.get(materialKey);
+        const courseKey = `${classId}:${subject.id}`;
+        const courseDoc = coursesByKey.get(courseKey);
+
+        return {
+          id: `${classId}:${subject.id}`,
+          courseId: subject.id,
+          subjectId: subject.id,
+          name: subject.name,
+          code: `${className}-${subject.name}`.replace(/\s+/g, '-').toUpperCase(),
+          description: matchedOverview?.description ?? `${subject.name} assigned for ${className}.`,
+          materialsCount: matchedMaterials.length,
+          overviewTitle: matchedOverview?.title ?? subject.name,
+          learningOutcomes: matchedOverview?.learningOutcomes ?? [],
+          objectives: matchedOverview?.objectives ?? [],
+          thumbnailUrl: matchedOverview?.thumbnailUrl ?? '',
+          thumbnailPublicId: matchedOverview?.thumbnailPublicId ?? '',
+          weeklySchedule: matchedOverview?.weeklySchedule ?? [],
+          recentMaterials:
+            matchedOverview?.recentMaterials ?? matchedMaterials.slice(0, 10).map((material: any) => ({
+              id: material._id.toString(),
+              title: material.title,
+              type: material.type,
+              url: material.url,
+              publicId: material.publicId,
+              content: material.content,
+              resourceType: material.resourceType,
+              originalFileName: material.originalFileName,
+              mimeType: material.mimeType,
+              sizeBytes: material.sizeBytes,
+              chapterId: material.chapterId,
+              topicId: material.topicId,
+              createdAt: material.createdAt,
+            })),
+          overview: matchedOverview ? {
+            description: matchedOverview.description,
+            learningOutcome: matchedOverview.learningOutcome,
+            learningOutcomes: matchedOverview.learningOutcomes,
+            objectives: matchedOverview.objectives,
+            thumbnailUrl: matchedOverview.thumbnailUrl,
+            thumbnailPublicId: matchedOverview.thumbnailPublicId,
+            recommendedBooks: matchedOverview.recommendedBooks ?? [],
+            weeklySchedule: matchedOverview.weeklySchedule,
+            chapters: courseDoc?.chapters ?? matchedOverview.chapters ?? [],
+          } : undefined,
+          chapters: courseDoc?.chapters ?? matchedOverview?.chapters ?? [],
+          materials: matchedMaterials.map((material: any) => ({
+            id: material._id.toString(),
+            title: material.title,
+            type: material.type,
+            url: material.url,
+            publicId: material.publicId,
+            content: material.content,
+            resourceType: material.resourceType,
+            originalFileName: material.originalFileName,
+            mimeType: material.mimeType,
+            sizeBytes: material.sizeBytes,
+            chapterId: material.chapterId,
+            topicId: material.topicId,
+            createdAt: material.createdAt,
+          })),
+          updatedAt: matchedOverview?.updatedAt,
+        };
+      });
+
+      return {
+        classId,
+        className,
+        academicYear: cls.academicYear,
+        assignedCourseCount: classCourses.length,
+        subjects: classSubjects,
+        courses: classCourses,
+      };
+    });
   }
 
   async updateByEmail(email: string, dto: UpdateTeacherSelfDto) {
@@ -165,7 +327,6 @@ export class TeachersService {
 
     if (dto.name) teacher.name = dto.name;
     if (dto.email) teacher.email = dto.email.toLowerCase();
-    if (dto.subject) teacher.subject = dto.subject;
     if (dto.gender !== undefined) teacher.gender = dto.gender;
     if (dto.qualification !== undefined)
       teacher.qualification = dto.qualification;
@@ -194,9 +355,6 @@ export class TeachersService {
 
     // Delete all related records in parallel
     const tasks: Promise<unknown>[] = [
-      // Courses taught by this teacher
-      this.courseModel.deleteMany({ teacherId: teacherObjectId }).exec(),
-
       // Assignments created by this teacher
       this.assignmentModel.deleteMany({ teacherId: teacher.employeeNo }).exec(),
 
@@ -348,7 +506,6 @@ export class TeachersService {
       employeeNo: teacher.employeeNo,
       name: teacher.name,
       email: teacher.email,
-      subject: teacher.subject,
       gender: teacher.gender,
       qualification: teacher.qualification,
       phone: teacher.phone ?? '',

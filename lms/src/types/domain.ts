@@ -88,11 +88,42 @@ export interface Teacher {
 
 export interface StudyMaterial {
   id: number | string;
+  teacherId?: string;
   title: string;
-  type: "pdf" | "doc" | "ppt" | "link" | "video" | "note" | "image" | "other";
+  type: "pdf" | "doc" | "ppt" | "link" | "video" | "audio" | "note" | "image" | "other";
   url?: string;
   publicId?: string;
   content?: string;
+  resourceType?: "image" | "video" | "raw" | "auto";
+  originalFileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
+export interface RecommendedBook {
+  id?: string;
+  title: string;
+  author: string;
+  fileUrl?: string;
+}
+
+export interface CourseOverview {
+  title?: string;
+  description?: string;
+  learningOutcomes?: string[];
+  objectives?: string[];
+  thumbnailUrl?: string;
+  thumbnailPublicId?: string;
+  weeklySchedule?: Array<{
+    id?: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    topic?: string;
+    location?: string;
+  }>;
+  recentMaterials?: StudyMaterial[];
+  recommendedBooks?: RecommendedBook[];
 }
 
 export interface CourseTopic {
@@ -130,6 +161,7 @@ export interface Course {
   room?: string;
   credits?: number;
   progress?: number;
+  overview?: CourseOverview;
   chapters?: CourseChapter[];
   materials?: StudyMaterial[];
   recentMaterials?: StudyMaterial[];

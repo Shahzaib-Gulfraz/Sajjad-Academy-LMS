@@ -15,9 +15,6 @@ export class Teacher {
   @Prop({ required: true, lowercase: true, trim: true })
   email!: string;
 
-  @Prop({ required: true, trim: true })
-  subject!: string;
-
   @Prop({ trim: true, default: '' })
   gender!: string;
 
@@ -56,5 +53,4 @@ export type TeacherDocument = HydratedDocument<Teacher>;
 export const TeacherSchema = SchemaFactory.createForClass(Teacher);
 
 TeacherSchema.index({ employeeNo: 1 }, { unique: true });
-TeacherSchema.index({ subject: 1 });
 TeacherSchema.index({ email: 1 });

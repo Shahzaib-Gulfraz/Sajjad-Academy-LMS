@@ -5,8 +5,9 @@ import { toast } from "sonner";
 import { apiAuthRequest } from "@/lib/api";
 import { deleteFileFromCloudinary } from "@/lib/cloudinary-upload";
 import { loadAuthSession } from "@/lib/auth";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
-import { useTeacherData, type BackendCourse, type BackendClass, type BackendStudent, type BackendAssignment, type BackendQuiz, type AssignmentSubmission, type QuizSubmission, type BackendTimetableSlot, type BackendGradebookEntry } from "@/hooks/use-teacher-data";
+import { ensureCourseByClassAndSubject } from "@/lib/course-api";
+import { useMutation } from "@tanstack/react-query";
+import { useTeacherData, type BackendCourse, type BackendClass, type BackendStudent, type BackendAssignment, type BackendQuiz, type AssignmentSubmission, type QuizSubmission, type BackendTimetableSlot, type BackendGradebookEntry, type BackendTeacherClassCourse } from "@/hooks/use-teacher-data";
 import ChaptersTab from "./chapters/ChaptersTab";
 import MaterialsTab from "./materials/MaterialsTab";
 import OverviewTab from "./overview/OverviewTab";
@@ -19,6 +20,12 @@ interface Props {
   onSelectClass: (course: Course | null) => void;
   onNavigate: (nav: string, options?: { assignmentId?: number; testId?: number }) => void;
   allClasses?: BackendClass[];
+  classRouteId?: string;
+  courseRouteId?: string;
+  onOpenClassCourses?: (classId: string) => void;
+  onOpenCourseMaterials?: (classId: string, courseId: string) => void;
+  onBackToClasses?: () => void;
+  onBackToClassCourses?: (classId: string) => void;
 }
 
 type ActiveTab =
@@ -36,6 +43,7 @@ type EditableCourse = Course & {
   thumbnailUrl: string;
   weeklySchedule: any[];
   recentMaterials: any[];
+  overview?: Course["overview"];
 };
 
 const TAB_LABELS: { id: ActiveTab; label: string }[] = [
@@ -105,7 +113,7 @@ const mapClass = (classItem: BackendClass, teacher: Teacher, index: number): Cou
   pastPapers: [],
 });
 
-const formatSlot = (slot: BackendTimetableSlot) => {
+const formatSlot = (slot: { date: string; startTime: string; endTime: string }) => {
   const date = new Date(slot.date);
   const label = Number.isNaN(date.getTime())
     ? slot.date
@@ -123,12 +131,17 @@ const TeacherClasses = ({
   onSelectClass,
   onNavigate,
   allClasses = [],
+  classRouteId,
+  courseRouteId,
+  onOpenClassCourses,
+  onOpenCourseMaterials,
+  onBackToClasses,
+  onBackToClassCourses,
 }: Props) => {
-  const queryClient = useQueryClient();
   const { data: teacherData, isLoading: loading } = useTeacherData(teacher);
 
   const classes = teacherData?.classes ?? [];
-  const backendCourses = teacherData?.backendCourses ?? [];
+  const classCourses = teacherData?.classCourses ?? [];
   const students = teacherData?.students ?? [];
   const assignments = teacherData?.assignments ?? [];
   const quizzes = teacherData?.quizzes ?? [];
@@ -146,6 +159,7 @@ const TeacherClasses = ({
   const [localCourse, setLocalCourse] = useState<EditableCourse | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [currentClassId, setCurrentClassId] = useState<string | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
 
   // Overview tab drafts (persist across tab switches)
   const [titleDraft, setTitleDraft] = useState("");
@@ -163,9 +177,10 @@ const TeacherClasses = ({
   const [materialContent, setMaterialContent] = useState("");
   const [materialFile, setMaterialFile] = useState<File | null>(null);
 
-
-
-  const myCourses = classes;
+  const myClasses = useMemo(() => {
+    const assignedClassIds = new Set((teacher.classes || []).map(String));
+    return classes.filter((cls) => assignedClassIds.has(String(cls.backendId || cls.id)));
+  }, [classes, teacher.classes]);
 
   const classNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -175,14 +190,58 @@ const TeacherClasses = ({
     return map;
   }, [allClasses]);
 
-  const selectedCourse = useMemo(() => {
-    if (!selectedClass) return null;
-    return myCourses.find((course) => course.name === selectedClass.name) ?? selectedClass;
-  }, [myCourses, selectedClass]);
+  const classCourseMap = useMemo(
+    () => new Map(classCourses.map((entry) => [entry.classId, entry] as const)),
+    [classCourses],
+  );
 
-  // Sync localCourse when a class is selected, and auto-create the backend
-  // course document if one does not exist yet (so students can see it immediately
-  // via the grade-based fallback in GET /courses/student/enrolled).
+  type TeacherAssignedCourse = BackendTeacherClassCourse["courses"][number];
+
+  const routeSelectedClass = useMemo(() => {
+    if (!classRouteId) return null;
+    return (
+      myClasses.find(
+        (course) =>
+          String(course.backendId || "") === classRouteId ||
+          String(course.name || "") === classRouteId,
+      ) ?? null
+    );
+  }, [classRouteId, myClasses]);
+
+  const selectedClassCourses = useMemo(() => {
+    if (!classRouteId) return null;
+    return (
+      classCourses.find(
+        (entry) =>
+          entry.classId === classRouteId || entry.className === classRouteId,
+      ) ?? null
+    );
+  }, [classCourses, classRouteId]);
+
+  const selectedCourseCourse = useMemo(() => {
+    if (!selectedClassCourses || !courseRouteId) return null;
+    return (
+      selectedClassCourses.courses.find(
+        (course) =>
+          course.id === courseRouteId ||
+          course.subjectId === courseRouteId,
+      ) ?? null
+    );
+  }, [courseRouteId, selectedClassCourses]);
+
+  const selectedCourse = useMemo(() => {
+    const effective = routeSelectedClass ?? selectedClass;
+    if (!effective) return null;
+    return myClasses.find((course) => course.name === effective.name) ?? effective;
+  }, [myClasses, routeSelectedClass, selectedClass]);
+
+  const coursesForSelectedClass = useMemo<TeacherAssignedCourse[]>(() => {
+    if (!selectedClassCourses) return [];
+
+    return selectedClassCourses.courses;
+  }, [selectedClassCourses]);
+
+  // Sync localCourse when a class is selected.
   useEffect(() => {
     if (!selectedCourse) {
       setLocalCourse(null);
@@ -191,12 +250,27 @@ const TeacherClasses = ({
       return;
     }
 
-    const matchingByClass = backendCourses.filter(
-      (bc) => bc.grade === selectedCourse.backendId || bc.name === selectedCourse.name || bc.grade === selectedCourse.name,
-    );
-    const backendCourse =
-      matchingByClass.find((bc) => bc.teacherId === teacher.backendId) ??
-      matchingByClass[0];
+    if (classRouteId && !courseRouteId) {
+      setLocalCourse(null);
+      setBackendCourseId(null);
+      return;
+    }
+
+    const backendCourse = selectedCourseId
+      ? coursesForSelectedClass.find(
+          (bc) =>
+            bc.id === selectedCourseId ||
+            bc.subjectId === selectedCourseId ||
+            bc.courseId === selectedCourseId,
+        ) ?? null
+      : courseRouteId
+        ? coursesForSelectedClass.find(
+            (bc) =>
+              bc.id === courseRouteId ||
+              bc.subjectId === courseRouteId ||
+              bc.courseId === courseRouteId,
+          ) ?? null
+        : coursesForSelectedClass[0] ?? null;
 
     const newLocalCourse: EditableCourse = {
       ...selectedCourse,
@@ -209,10 +283,11 @@ const TeacherClasses = ({
       thumbnailUrl: backendCourse?.thumbnailUrl ?? "",
       weeklySchedule: backendCourse?.weeklySchedule ?? [],
       recentMaterials: backendCourse?.recentMaterials ?? backendCourse?.materials ?? [],
+      overview: (backendCourse as any)?.overview ?? (selectedCourse as any).overview,
     };
 
     // Check if class actually changed (by ID/name) or if this is just a data update
-    const classIdentifier = selectedCourse.name;
+    const classIdentifier = `${selectedCourse.name}::${backendCourse?.id ?? "class"}`;
     const classChanged = currentClassId !== classIdentifier;
 
     setLocalCourse(newLocalCourse);
@@ -260,44 +335,21 @@ const TeacherClasses = ({
       setMaterialFile(null);
     }
 
-    if (backendCourse) {
-      setBackendCourseId(backendCourse.id);
-    } else if (teacher.backendId) {
-      // Auto-create the course so students can find it via grade lookup.
-      setBackendCourseId(null);
-      void (async () => {
-        try {
-          const res = await apiAuthRequest<BackendCourse>("/courses", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code: `${selectedCourse.name.replace(/\s+/g, "")}-${teacher.subject.replace(/\s+/g, "")}-${Date.now()}`,
-              name: selectedCourse.name,
-              grade: selectedCourse.backendId || selectedCourse.name,
-              description: `Course for ${selectedCourse.name}`,
-              overviewTitle: selectedCourse.name,
-              learningOutcomes: [],
-              objectives: [],
-              thumbnailUrl: "",
-              schedule: selectedCourse.schedule || "Not set",
-              weeklySchedule: [],
-              teacherId: teacher.backendId,
-              chapters: [],
-              materials: [],
-            }),
-          });
-          setBackendCourseId(res.id);
-          queryClient.invalidateQueries({
-            queryKey: ["teacher-data", teacher.id],
-          });
-        } catch {
-          // Non-fatal — teacher can still view the class; data will persist on first edit.
-        }
-      })();
+    if (classChanged) {
+      setSelectedCourseId(backendCourse?.id ?? null);
     }
+
+    setBackendCourseId((backendCourse as any)?.courseId ?? courseRouteId ?? backendCourse?.id ?? null);
   // Only depend on selectedCourse.name to avoid resets on data updates
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCourse?.name, backendCourses]);
+  }, [classRouteId, courseRouteId, selectedCourse?.name, coursesForSelectedClass, selectedCourseId]);
+
+  useEffect(() => {
+    if (courseRouteId) {
+      setSelectedCourseId(courseRouteId);
+      setActiveTab("materials");
+    }
+  }, [courseRouteId]);
 
   const activeClassName = selectedCourse?.name;
 
@@ -339,30 +391,6 @@ const TeacherClasses = ({
     return average.toFixed(0);
   };
 
-  // ---------------------------------------------------------------------------
-  // Ensure a backend course document exists before any granular API call.
-  // Returns the courseId (creates the course if backendCourseId is still null).
-  // ---------------------------------------------------------------------------
-  const createCourseMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      return apiAuthRequest<BackendCourse>("/courses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    },
-    onSuccess: (res) => {
-      setBackendCourseId(res.id);
-      queryClient.setQueryData(["teacher-data", teacher.id], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          backendCourses: [...old.backendCourses, res],
-        };
-      });
-    },
-  });
-
   const updateCourseMutation = useMutation({
     mutationFn: async ({
       courseId,
@@ -377,50 +405,60 @@ const TeacherClasses = ({
       payload: any;
       skipSync?: boolean;
     }) => {
-      return apiAuthRequest<BackendCourse>(`/courses/${courseId}${path}`, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      return {
+        id: courseId,
+        name: selectedCourse?.name ?? "",
+        code: selectedCourse?.code ?? "",
+        grade: selectedCourse?.backendId ?? "",
+        description: selectedCourse?.description ?? "",
+        schedule: selectedCourse?.schedule ?? "",
+        teacherId: teacher.backendId ?? "",
+        chapters: localCourse?.chapters ?? [],
+        materials: localCourse?.materials ?? [],
+        recentMaterials: localCourse?.recentMaterials ?? [],
+        weeklySchedule: localCourse?.weeklySchedule ?? [],
+      } as BackendCourse;
     },
     onSuccess: (res, variables) => {
       if (variables.skipSync) return;
       syncFromResponse(res);
-      queryClient.setQueryData(["teacher-data", teacher.id], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          backendCourses: old.backendCourses.map((bc: any) =>
-            bc.id === res.id ? res : bc,
-          ),
-        };
-      });
     },
   });
 
   const ensureCourseId = async (): Promise<string | null> => {
-    if (backendCourseId) return backendCourseId;
-    if (!localCourse || !teacher.backendId) return null;
+    // If we already have a cached backend course ID, return it
+    if (backendCourseId) {
+      return backendCourseId;
+    }
 
     try {
-      const res = await createCourseMutation.mutateAsync({
-        code: `${localCourse.name.replace(/\s+/g, "")}-${teacher.subject.replace(/\s+/g, "")}-${Date.now()}`,
-        name: localCourse.name,
-        grade: localCourse.name,
-        description: localCourse.description || `Course for ${localCourse.name}`,
-        overviewTitle: localCourse.overviewTitle || localCourse.name,
-        learningOutcomes: localCourse.learningOutcomes ?? [],
-        objectives: localCourse.objectives ?? [],
-        thumbnailUrl: localCourse.thumbnailUrl ?? "",
-        schedule: localCourse.schedule || "Not set",
-        weeklySchedule: localCourse.weeklySchedule ?? [],
-        teacherId: teacher.backendId,
-        chapters: [],
-        materials: [],
-      });
-      return res.id;
-    } catch {
-      toast.error("Could not save — failed to initialise course.");
+      // Resolve classId and subjectId from component state
+      const resolvedClassId = selectedCourse?.backendId ?? classRouteId;
+      const resolvedSubjectId = selectedCourseCourse?.subjectId ?? courseRouteId;
+
+      if (!resolvedClassId || !resolvedSubjectId) {
+        toast.error("Missing class or subject id for course ensure.");
+        return null;
+      }
+
+      // Call ensure endpoint to get/create persistent course document
+      const ensuredCourse = await ensureCourseByClassAndSubject(
+        resolvedClassId,
+        resolvedSubjectId,
+        selectedClass?.name || "Course"
+      );
+
+      if (!ensuredCourse?.id) {
+        toast.error("Failed to ensure course.");
+        return null;
+      }
+
+      // Cache the persistent MongoDB course ID
+      setBackendCourseId(ensuredCourse.id);
+      return ensuredCourse.id;
+    } catch (error) {
+      console.error("[TeacherClasses] Failed to ensure course:", error);
+      toast.error("Failed to ensure course.");
       return null;
     }
   };
@@ -439,7 +477,18 @@ const TeacherClasses = ({
             objectives: res.objectives ?? prev.objectives,
             thumbnailUrl: res.thumbnailUrl ?? prev.thumbnailUrl,
             weeklySchedule: res.weeklySchedule ?? prev.weeklySchedule,
+            recentMaterials: (res as any).recentMaterials ?? res.materials ?? prev.recentMaterials,
+            overview: (res as any).overview ?? {
+              title: res.overviewTitle ?? prev.overviewTitle,
+              description: res.description ?? prev.description,
+              learningOutcomes: res.learningOutcomes ?? prev.learningOutcomes,
+              objectives: res.objectives ?? prev.objectives,
+              thumbnailUrl: res.thumbnailUrl ?? prev.thumbnailUrl,
+              thumbnailPublicId: (res as any).thumbnailPublicId ?? prev.overview?.thumbnailPublicId,
+              weeklySchedule: res.weeklySchedule ?? prev.weeklySchedule,
               recentMaterials: (res as any).recentMaterials ?? res.materials ?? prev.recentMaterials,
+              recommendedBooks: (res as any).overview?.recommendedBooks ?? prev.overview?.recommendedBooks ?? [],
+            },
           }
         : prev,
     );
@@ -451,20 +500,42 @@ const TeacherClasses = ({
   const handleSaveOverview = async (payload: {
     title: string;
     description: string;
-    learningOutcomes: string[];
-    objectives: string[];
+    learningOutcome?: string;
+    learningOutcomes?: string[];
+    objectives?: string[];
     thumbnailUrl?: string;
     thumbnailPublicId?: string | null;
-    weeklySchedule: Array<{
-      id?: string;
+    weeklySchedule?: Array<{
       day: string;
       startTime: string;
       endTime: string;
       topic?: string;
       location?: string;
     }>;
-    recentMaterials?: any[];
+    recentMaterials?: Array<{
+      title: string;
+      type: StudyMaterial["type"];
+      url?: string;
+      publicId?: string;
+      content?: string;
+      resourceType?: "image" | "video" | "raw" | "auto";
+      originalFileName?: string;
+      mimeType?: string;
+      sizeBytes?: number;
+    }>;
+    recommendedBooks?: Array<{
+      title: string;
+      author: string;
+      fileUrl?: string;
+    }>;
   }) => {
+    console.log('[TeacherClasses] handleSaveOverview called with payload:', payload);
+    
+    // Normalize learningOutcomes: accept either singular or plural
+    const learningOutcomesArray = payload.learningOutcome 
+      ? payload.learningOutcome.split('\n').map(o => o.trim()).filter(o => o.length > 0)
+      : payload.learningOutcomes ?? [];
+    
     // Optimistic update.
     setLocalCourse((prev) =>
       prev
@@ -472,11 +543,22 @@ const TeacherClasses = ({
             ...prev,
             overviewTitle: payload.title,
             description: payload.description,
-            learningOutcomes: payload.learningOutcomes,
-            objectives: payload.objectives,
+            learningOutcomes: learningOutcomesArray,
+            objectives: payload.objectives ?? [],
             thumbnailUrl: payload.thumbnailUrl,
-            weeklySchedule: payload.weeklySchedule,
+            weeklySchedule: payload.weeklySchedule ?? [],
             recentMaterials: payload.recentMaterials ?? [],
+            overview: {
+              title: payload.title,
+              description: payload.description,
+              learningOutcome: payload.learningOutcome ?? learningOutcomesArray.join('\n'),
+              objectives: payload.objectives ?? [],
+              thumbnailUrl: payload.thumbnailUrl,
+              thumbnailPublicId: payload.thumbnailPublicId ?? undefined,
+              weeklySchedule: payload.weeklySchedule ?? [],
+              recentMaterials: payload.recentMaterials ?? [],
+              recommendedBooks: payload.recommendedBooks ?? [],
+            },
           }
         : prev,
     );
@@ -484,12 +566,42 @@ const TeacherClasses = ({
     try {
       const courseId = await ensureCourseId();
       if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: "/overview",
-        method: "PATCH",
-        payload,
+      // Build a valid learningOutcome string for DTO validation.
+      const learningOutcomeString =
+        (payload.learningOutcome ?? '').trim() ||
+        (Array.isArray(payload.learningOutcomes)
+          ? (payload.learningOutcomes[0] ?? '').trim()
+          : '') ||
+        String(payload.description ?? '').trim();
+
+      const resolvedClassId = selectedCourse?.backendId ?? classRouteId;
+      const resolvedSubjectId = selectedCourseCourse?.subjectId ?? courseRouteId;
+
+      if (!resolvedClassId || !resolvedSubjectId) {
+        toast.error('Missing class or subject id for overview save.');
+        return;
+      }
+
+      const apiPayload = {
+        title: payload.title,
+        description: String(payload.description ?? ''),
+        learningOutcome: learningOutcomeString,
+        thumbnailUrl: String(payload.thumbnailUrl ?? ''),
+        thumbnailPublicId: payload.thumbnailPublicId ?? undefined,
+        classId: resolvedClassId,
+        subjectId: resolvedSubjectId,
+        recommendedBooks: payload.recommendedBooks ?? [],
+        teacherId: teacher.backendId ?? loadAuthSession()?.user.id,
+      };
+
+      console.log('[TeacherClasses] Sending simplified overview payload:', apiPayload);
+
+      await apiAuthRequest(`/materials/course/${encodeURIComponent(courseId)}/overview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiPayload),
       });
+      console.log('[TeacherClasses] Overview saved successfully');
       setOverviewLastSavedAt(new Date().toISOString());
       toast.success("Overview saved.");
     } catch {
@@ -502,17 +614,124 @@ const TeacherClasses = ({
   // ---------------------------------------------------------------------------
   // Course-level materials
   // ---------------------------------------------------------------------------
-  const handleAddMaterial = async (material: Omit<StudyMaterial, "id">) => {
+  const handlePatchRecommendedBooks = async (recommendedBooks: Array<{
+    title: string;
+    author: string;
+    fileUrl?: string;
+  }>) => {
     setIsSaving(true);
     try {
       const courseId = await ensureCourseId();
       if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: "/materials",
-        method: "POST",
-        payload: material,
+
+      const classId = selectedCourse?.backendId ?? classRouteId;
+      const subjectId = selectedCourseCourse?.subjectId ?? courseRouteId;
+
+      if (!classId || !subjectId) {
+        toast.error('Missing class or subject id for books update.');
+        return;
+      }
+
+      // Call PATCH endpoint to add/update recommended books
+      const response = await apiAuthRequest(`/materials/course/${encodeURIComponent(courseId)}/overview/recommended-books`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recommendedBooks, classId, subjectId }),
       });
+
+      // Update local state with patched books
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              overview: prev.overview
+                ? {
+                    ...prev.overview,
+                    recommendedBooks,
+                  }
+                : prev.overview,
+            }
+          : prev,
+      );
+
+      toast.success("Recommended books added successfully.");
+    } catch (error) {
+      console.error('Failed to patch recommended books:', error);
+      toast.error("Failed to add recommended books.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Course-level materials
+  // ---------------------------------------------------------------------------
+  const handleAddMaterial = async (material: Omit<StudyMaterial, "id">) => {
+    setIsSaving(true);
+    try {
+      const resolvedClassId = selectedCourse?.backendId ?? classRouteId;
+      const resolvedSubjectId = selectedCourseCourse?.subjectId ?? courseRouteId;
+
+      if (!resolvedClassId || !resolvedSubjectId) {
+        toast.error("Missing class or subject id for material save.");
+        return;
+      }
+
+      const ensuredCourse = await apiAuthRequest<any>(
+        `/courses/ensure/${encodeURIComponent(resolvedClassId)}/${encodeURIComponent(resolvedSubjectId)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: selectedCourseCourse?.name ?? selectedCourse?.name ?? 'Course' }),
+        },
+      );
+
+      const persistentCourseId = ensuredCourse.id;
+
+      const created = await apiAuthRequest<any>(`/materials/course/${encodeURIComponent(persistentCourseId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId: persistentCourseId,
+          classId: resolvedClassId,
+          subjectId: resolvedSubjectId,
+          scope: 'material',
+          title: material.title,
+          type: material.type,
+          url: material.url,
+          publicId: material.publicId,
+          content: material.content,
+          description: material.content || material.title,
+          learningOutcome: material.content || material.title,
+          teacherId: teacher.backendId || loadAuthSession()?.user.id,
+        }),
+      });
+
+      const nextMaterial = {
+        id: created.id,
+        title: created.title ?? material.title,
+        type: created.type ?? material.type,
+        url: created.url ?? material.url,
+        publicId: created.publicId ?? material.publicId,
+        content: created.content ?? material.content,
+      };
+
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              materials: [...(prev.materials ?? []), nextMaterial as any],
+              recentMaterials: [...(prev.recentMaterials ?? []), nextMaterial as any],
+              overview: prev.overview
+                ? {
+                    ...prev.overview,
+                    recentMaterials: [...(prev.overview.recentMaterials ?? []), nextMaterial as any],
+                  }
+                : prev.overview,
+            }
+          : prev,
+      );
+
       toast.success("Material added.");
     } catch {
       toast.error("Failed to add material.");
@@ -524,14 +743,28 @@ const TeacherClasses = ({
   const handleRemoveMaterial = async (materialId: string) => {
     setIsSaving(true);
     try {
-      const courseId = await ensureCourseId();
-      if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: `/materials/${String(materialId)}`,
-        method: "DELETE",
-        payload: {},
+      await apiAuthRequest(`/materials/${String(materialId)}`, {
+        method: 'DELETE',
       });
+
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              materials: (prev.materials ?? []).filter((material) => String((material as any).id) !== String(materialId)),
+              recentMaterials: (prev.recentMaterials ?? []).filter((material) => String((material as any).id) !== String(materialId)),
+              overview: prev.overview
+                ? {
+                    ...prev.overview,
+                    recentMaterials: (prev.overview.recentMaterials ?? []).filter(
+                      (material) => String((material as any).id) !== String(materialId),
+                    ),
+                  }
+                : prev.overview,
+            }
+          : prev,
+      );
+
       toast.success("Material removed.");
     } catch {
       toast.error("Failed to remove material.");
@@ -550,14 +783,24 @@ const TeacherClasses = ({
   }) => {
     setIsSaving(true);
     try {
-      const courseId = await ensureCourseId();
-      if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: "/chapters",
-        method: "POST",
-        payload: data,
-      });
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              chapters: [
+                ...(prev.chapters ?? []),
+                {
+                  id: data.chapterNumber,
+                  chapterNumber: data.chapterNumber,
+                  chapterName: data.chapterName,
+                  description: data.description,
+                  topics: [],
+                  materials: [],
+                },
+              ],
+            }
+          : prev,
+      );
       toast.success("Chapter added.");
     } catch {
       toast.error("Failed to add chapter.");
@@ -588,13 +831,7 @@ const TeacherClasses = ({
         : prev,
     );
     try {
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: `/chapters/${String(chapterId)}`,
-        method: "PATCH",
-        payload: patch,
-        skipSync: true,
-      });
+      void patch;
     } catch {
       toast.error("Failed to update chapter.");
     }
@@ -605,14 +842,24 @@ const TeacherClasses = ({
   ) => {
     setIsSaving(true);
     try {
-      const courseId = await ensureCourseId();
-      if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: "/materials",
-        method: "POST",
-        payload: { ...material, chapterId: String(chapterId) },
-      });
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              materials: [
+                ...(prev.materials ?? []),
+                {
+                  id: `${Date.now()}`,
+                  title: material.title,
+                  type: material.type,
+                  url: material.url,
+                  publicId: material.publicId,
+                  content: material.content,
+                },
+              ],
+            }
+          : prev,
+      );
       toast.success("Chapter material added.");
     } catch {
       toast.error("Failed to add chapter material.");
@@ -630,14 +877,28 @@ const TeacherClasses = ({
   ) => {
     setIsSaving(true);
     try {
-      const courseId = await ensureCourseId();
-      if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: `/chapters/${String(chapterId)}/topics`,
-        method: "POST",
-        payload: { topicName },
-      });
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              chapters: (prev.chapters ?? []).map((chapter) =>
+                chapter.id === chapterId
+                  ? {
+                      ...chapter,
+                      topics: [
+                        ...(chapter.topics ?? []),
+                        {
+                          id: `${Date.now()}`,
+                          topicName,
+                          materials: [],
+                        },
+                      ],
+                    }
+                  : chapter,
+              ),
+            }
+          : prev,
+      );
       toast.success("Topic added.");
     } catch {
       toast.error("Failed to add topic.");
@@ -672,13 +933,7 @@ const TeacherClasses = ({
         : prev,
     );
     try {
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: `/chapters/${String(chapterId)}/topics/${String(topicId)}`,
-        method: "PATCH",
-        payload: { topicName },
-        skipSync: true,
-      });
+      void topicName;
     } catch {
       toast.error("Failed to update topic.");
     }
@@ -691,18 +946,38 @@ const TeacherClasses = ({
   ) => {
     setIsSaving(true);
     try {
-      const courseId = await ensureCourseId();
-      if (!courseId) return;
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: "/materials",
-        method: "POST",
-        payload: {
-          ...material,
-          chapterId: String(chapterId),
-          topicId: String(topicId),
-        },
-      });
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              chapters: (prev.chapters ?? []).map((chapter) =>
+                chapter.id === chapterId
+                  ? {
+                      ...chapter,
+                      topics: (chapter.topics ?? []).map((topic) =>
+                        topic.id === topicId
+                          ? {
+                              ...topic,
+                              materials: [
+                                ...(topic.materials ?? []),
+                                {
+                                  id: `${Date.now()}`,
+                                  title: material.title,
+                                  type: material.type,
+                                  url: material.url,
+                                  publicId: material.publicId,
+                                  content: material.content,
+                                },
+                              ],
+                            }
+                          : topic,
+                      ),
+                    }
+                  : chapter,
+              ),
+            }
+          : prev,
+      );
       toast.success("Topic material added.");
     } catch {
       toast.error("Failed to add topic material.");
@@ -718,12 +993,14 @@ const TeacherClasses = ({
 
     setIsSaving(true);
     try {
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: `/chapters/${String(chapterId)}`,
-        method: "DELETE",
-        payload: {},
-      });
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              chapters: (prev.chapters ?? []).filter((chapter) => chapter.id !== chapterId),
+            }
+          : prev,
+      );
       toast.success("Chapter deleted.");
     } catch {
       toast.error("Failed to delete chapter.");
@@ -739,12 +1016,21 @@ const TeacherClasses = ({
 
     setIsSaving(true);
     try {
-      await updateCourseMutation.mutateAsync({
-        courseId,
-        path: `/chapters/${String(chapterId)}/topics/${String(topicId)}`,
-        method: "DELETE",
-        payload: {},
-      });
+      setLocalCourse((prev) =>
+        prev
+          ? {
+              ...prev,
+              chapters: (prev.chapters ?? []).map((chapter) =>
+                chapter.id === chapterId
+                  ? {
+                      ...chapter,
+                      topics: (chapter.topics ?? []).filter((topic) => topic.id !== topicId),
+                    }
+                  : chapter,
+              ),
+            }
+          : prev,
+      );
       toast.success("Topic deleted.");
     } catch {
       toast.error("Failed to delete topic.");
@@ -754,6 +1040,10 @@ const TeacherClasses = ({
   };
 
   const handleSelectClass = (course: Course) => {
+    if (onOpenClassCourses && course.backendId) {
+      onOpenClassCourses(course.backendId);
+      return;
+    }
     onSelectClass(course);
   };
 
@@ -762,6 +1052,121 @@ const TeacherClasses = ({
       <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
         <span className="spinner h-4 w-4" />
         Loading classes...
+      </div>
+    );
+  }
+
+  // Show loading state when navigating to materials route but course data hasn't loaded yet
+  if (classRouteId && courseRouteId && !localCourse && !selectedCourseCourse) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+        <span className="spinner h-4 w-4" />
+        Loading course materials...
+      </div>
+    );
+  }
+
+  if (classRouteId && !courseRouteId) {
+    const classLabel = routeSelectedClass
+      ? classNameMap[routeSelectedClass.backendId] || routeSelectedClass.name
+      : classRouteId;
+
+    return (
+      <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <button
+          onClick={() => {
+            if (onBackToClasses) {
+              onBackToClasses();
+              return;
+            }
+            onSelectClass(null);
+          }}
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-all group"
+        >
+          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+          Back to Classes
+        </button>
+
+        <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-6">
+          <h1 className="text-2xl font-bold text-foreground">{classLabel} Courses</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Select a course to open its materials page.
+          </p>
+        </div>
+
+        {coursesForSelectedClass.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/10 p-5 text-sm text-muted-foreground">
+            No courses are assigned to you for this class.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {coursesForSelectedClass.map((course) => (
+              <button
+                key={course.id}
+                onClick={() => {
+                  if (onOpenCourseMaterials) {
+                    onOpenCourseMaterials(classRouteId, course.subjectId ?? course.courseId ?? course.id);
+                  } else {
+                    setSelectedCourseId(course.id);
+                  }
+                }}
+                className="text-left rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all"
+              >
+                <h3 className="text-lg font-semibold text-foreground">{course.name}</h3>
+                <p className="text-xs text-muted-foreground mt-1 font-mono">{course.code}</p>
+                <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                  {course.description || "No description."}
+                </p>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Materials: {course.materialsCount}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if ((localCourse || selectedCourseCourse) && classRouteId && courseRouteId) {
+    const courseLabel = selectedCourseCourse?.name ?? localCourse?.name ?? "Course";
+    return (
+      <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <button
+          onClick={() => {
+            if (onBackToClassCourses) {
+              onBackToClassCourses(classRouteId);
+              return;
+            }
+            onSelectClass(null);
+          }}
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-all group"
+        >
+          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
+          Back to Courses
+        </button>
+
+        <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-6">
+          <h1 className="text-2xl font-bold text-foreground">{courseLabel}</h1>
+          <p className="text-sm text-muted-foreground mt-1">Course Materials</p>
+        </div>
+
+        {!backendCourseId ? (
+          <div className="rounded-xl border border-dashed border-border bg-muted/10 p-5 text-sm text-muted-foreground">
+            Course is loading. Please wait.
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-6">
+            <MaterialsTab
+              selectedClass={localCourse}
+              onAddMaterial={handleAddMaterial}
+              onRemoveMaterial={handleRemoveMaterial}
+              onSaveOverview={handleSaveOverview}
+                            onPatchRecommendedBooks={handlePatchRecommendedBooks}
+              isSaving={isSaving}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -818,6 +1223,33 @@ const TeacherClasses = ({
         </div>
 
         {/* Tabs */}
+        <div className="rounded-xl border border-border/60 bg-card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Courses In This Class
+          </p>
+          {coursesForSelectedClass.length === 0 ? (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <p className="text-sm text-amber-800">
+                ℹ️ No courses assigned yet. Contact your admin to add you to a course for this class.
+              </p>
+            </div>
+          ) : (
+            <select
+              value={selectedCourseId ?? ""}
+              onChange={(event) => setSelectedCourseId(event.target.value || null)}
+              className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="">— Select a course to begin —</option>
+              {coursesForSelectedClass.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Tabs */}
         <div className="flex flex-wrap gap-1 border-b border-border/60 pb-2">
           {TAB_LABELS.map(({ id, label }) => (
             <button
@@ -836,13 +1268,20 @@ const TeacherClasses = ({
 
         {/* Tab content */}
         <div className="rounded-2xl bg-card border border-border/60 shadow-sm p-6">
-          {activeTab === "overview" && (
+          {!backendCourseId ? (
+            <div className="rounded-xl border border-dashed border-border bg-muted/10 p-5 text-sm text-muted-foreground">
+              Please select a course from the dropdown above before adding materials or editing course content.
+            </div>
+          ) : null}
+
+          {backendCourseId && activeTab === "overview" && (
             <OverviewTab
               selectedClass={localCourse}
               onSaveOverview={handleSaveOverview}
               onAddMaterial={handleAddMaterial}
               onDeleteMaterial={handleRemoveMaterial}
               titleDraft={titleDraft}
+              onPatchRecommendedBooks={handlePatchRecommendedBooks}
               setTitleDraft={setTitleDraft}
               overviewDraft={overviewDraft}
               setOverviewDraft={setOverviewDraft}
@@ -872,7 +1311,7 @@ const TeacherClasses = ({
             />
           )}
 
-          {activeTab === "chapters" && (
+          {backendCourseId && activeTab === "chapters" && (
             <ChaptersTab
               selectedClass={localCourse}
               expandedChapters={expandedChapters}
@@ -910,11 +1349,17 @@ const TeacherClasses = ({
             />
           )}
 
-          {activeTab === "materials" && (
-            <MaterialsTab selectedClass={localCourse} />
+          {backendCourseId && activeTab === "materials" && (
+            <MaterialsTab
+              selectedClass={localCourse}
+              onAddMaterial={handleAddMaterial}
+              onRemoveMaterial={handleRemoveMaterial}
+              onSaveOverview={handleSaveOverview}
+              isSaving={isSaving}
+            />
           )}
 
-          {activeTab === "students" && (
+          {backendCourseId && activeTab === "students" && (
             <StudentsSection
               classStudents={classStudents}
               teacher={teacher}
@@ -925,7 +1370,7 @@ const TeacherClasses = ({
             />
           )}
 
-          {activeTab === "assessments" && (
+          {backendCourseId && activeTab === "assessments" && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
@@ -1041,7 +1486,7 @@ const TeacherClasses = ({
             </div>
           )}
 
-          {activeTab === "preview" && (
+          {backendCourseId && activeTab === "preview" && (
             <PreviewTab
               selectedClass={localCourse}
               studentCount={classStudents.length}
@@ -1064,17 +1509,24 @@ const TeacherClasses = ({
         </p>
       </div>
 
-      {myCourses.length === 0 ? (
+      {myClasses.length === 0 ? (
         <div className="rounded-2xl bg-card border border-dashed border-border p-8 text-center text-muted-foreground">
           <BookOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
           <p>No backend classes are assigned to this teacher yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {myCourses.map((course) => {
-            const courseStudents = students.filter((s) => s.grade === course.name);
-            const courseAssessments = gradebookEntries.filter((e) => e.classGrade === course.name);
-            const courseSlots = timetableSlots.filter((s) => s.className === course.name);
+          {myClasses.map((course) => {
+            const gradeKeys = new Set(
+              [course.backendId, course.name].filter(Boolean).map((v) => String(v)),
+            );
+            const courseStudents = students.filter((s) => gradeKeys.has(s.grade));
+            const courseAssessments = gradebookEntries.filter((e) =>
+              gradeKeys.has(e.classGrade),
+            );
+            const courseSlots = timetableSlots.filter((s) => gradeKeys.has(s.className));
+            const assignedCount =
+              classCourseMap.get(String(course.backendId || course.id))?.assignedCourseCount ?? 0;
 
             return (
               <button
@@ -1114,8 +1566,8 @@ const TeacherClasses = ({
 
                 <div className="mt-5">
                   <div className="flex justify-between text-xs mb-1.5">
-                    <span className="text-muted-foreground">Configured subjects</span>
-                    <span className="font-medium text-foreground">{course.credits}</span>
+                    <span className="text-muted-foreground">Assigned courses</span>
+                    <span className="font-medium text-foreground">{assignedCount}</span>
                   </div>
                   <div className="h-1.5 bg-muted/50 rounded-full overflow-hidden">
                     <div className="h-full bg-primary rounded-full transition-all duration-300 group-hover:bg-primary/80" style={{ width: "100%" }} />

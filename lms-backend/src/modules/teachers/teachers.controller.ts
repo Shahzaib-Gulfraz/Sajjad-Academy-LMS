@@ -57,6 +57,15 @@ export class TeachersController {
     };
   }
 
+  @Get('me/class-courses')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({ summary: 'Get logged-in teacher classes with assigned courses' })
+  async myClassCourses(@CurrentUser() actor: RequestUser) {
+    return {
+      data: await this.teachersService.findMyClassesWithCourses(actor.email),
+    };
+  }
+
   @Patch('me')
   @Roles(UserRole.TEACHER)
   @ApiOperation({ summary: 'Update current teacher profile' })
@@ -74,17 +83,15 @@ export class TeachersController {
   @Get()
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'List teachers' })
-  @ApiQuery({ name: 'subject', required: false, type: String })
   @ApiQuery({ name: 'status', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiOkResponse({ type: TeachersListResponseDto })
   async findAll(
-    @Query('subject') subject?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {
     return {
-      data: await this.teachersService.findAll({ subject, status, search }),
+      data: await this.teachersService.findAll({ status, search }),
     };
   }
 

@@ -5,10 +5,6 @@ import { StudentsService } from './students.service';
 import { StudentsController } from './students.controller';
 import { UsersModule } from '../users/users.module';
 import {
-  CourseEnrollment,
-  CourseEnrollmentSchema,
-} from '../courses/schemas/enrollment.schema';
-import {
   AssignmentSubmission,
   AssignmentSubmissionSchema,
 } from '../assignments/schemas/assignment-submission.schema';
@@ -44,10 +40,6 @@ import { LeaveRequest, LeaveRequestSchema } from '../leaves/schemas/leave-reques
       {
         name: Student.name,
         schema: StudentSchema,
-      },
-      {
-        name: CourseEnrollment.name,
-        schema: CourseEnrollmentSchema,
       },
       {
         name: AssignmentSubmission.name,

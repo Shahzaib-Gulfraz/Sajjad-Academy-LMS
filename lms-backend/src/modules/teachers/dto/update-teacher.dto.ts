@@ -21,12 +21,6 @@ export class UpdateTeacherDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  subject?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(20)
   gender?: string;
 

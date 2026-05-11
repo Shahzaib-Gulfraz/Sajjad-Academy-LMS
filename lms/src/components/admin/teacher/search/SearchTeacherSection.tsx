@@ -63,7 +63,7 @@ const SearchTeacherSection = ({
           <input
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search by teacher name, ID, class or subject"
+            placeholder="Search by teacher name, ID, class or course"
             className="w-full bg-transparent text-sm outline-none"
           />
         </div>
@@ -201,10 +201,6 @@ const SearchTeacherSection = ({
                 <p className="font-medium text-foreground">
                   {selectedTeacher.qualification || "N/A"}
                 </p>
-              </div>
-              <div className="rounded-lg border border-border bg-background p-3">
-                <p className="text-xs text-muted-foreground">Subjects</p>
-                <p className="font-medium text-foreground">{selectedTeacher.subject || "N/A"}</p>
               </div>
               <div className="rounded-lg border border-border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Classes</p>

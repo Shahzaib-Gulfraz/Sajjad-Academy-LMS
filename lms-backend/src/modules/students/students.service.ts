@@ -13,10 +13,6 @@ import { UpdateStudentSelfDto } from './dto/update-student-self.dto';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../../common/auth/roles.enum';
 import {
-  CourseEnrollment,
-  CourseEnrollmentDocument,
-} from '../courses/schemas/enrollment.schema';
-import {
   AssignmentSubmission,
   AssignmentSubmissionDocument,
 } from '../assignments/schemas/assignment-submission.schema';
@@ -51,8 +47,6 @@ export class StudentsService {
   constructor(
     @InjectModel(Student.name)
     private readonly studentModel: Model<StudentDocument>,
-    @InjectModel(CourseEnrollment.name)
-    private readonly courseEnrollmentModel: Model<CourseEnrollmentDocument>,
     @InjectModel(AssignmentSubmission.name)
     private readonly assignmentSubmissionModel: Model<AssignmentSubmissionDocument>,
     @InjectModel(QuizSubmission.name)
@@ -211,9 +205,6 @@ export class StudentsService {
 
     // Delete all related records in parallel
     const tasks: Promise<unknown>[] = [
-      // Course enrollments
-      this.courseEnrollmentModel.deleteMany({ studentId: studentObjectId }).exec(),
-
       // Assignment submissions
       this.assignmentSubmissionModel.deleteMany({ studentId: student.admissionNo }).exec(),
 

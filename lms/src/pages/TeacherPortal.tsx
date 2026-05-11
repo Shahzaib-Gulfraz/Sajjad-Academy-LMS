@@ -36,7 +36,7 @@ import TeacherGradebook from "@/components/teacher/gradebook/TeacherGradebook";
 import TeacherTimetable from "@/components/teacher/timetable/TeacherTimetable";
 import { apiAuthRequest } from "@/lib/api";
 import { EmptyState, SectionLoader } from "@/components/ui/states";
-import type { BackendClass, BackendCourse } from "@/hooks/use-teacher-data";
+import type { BackendClass, BackendTeacherClassCourse } from "@/hooks/use-teacher-data";
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -87,7 +87,7 @@ type BackendTeacher = {
   employeeNo: string;
   name: string;
   email: string;
-  subject: string;
+  subject?: string;
   classes: string[];
   phone: string;
   address: string;
@@ -150,7 +150,7 @@ const mapTeacher = (teacher: BackendTeacher, index: number): Teacher => ({
   id: toNumber(teacher.employeeNo, index + 1),
   backendId: teacher.id,
   name: teacher.name,
-  subject: teacher.subject,
+  subject: teacher.subject ?? "",
   email: teacher.email,
   avatar: initials(teacher.name),
   avatarUrl: teacher.avatarUrl ?? "",
@@ -182,7 +182,11 @@ const mapAnnouncement = (
 const TeacherPortal = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { section } = useParams<{ section?: string }>();
+  const { section, classId, courseId } = useParams<{
+    section?: string;
+    classId?: string;
+    courseId?: string;
+  }>();
   const [selectedClass, setSelectedClass] = useState<Course | null>(null);
 
   const {
@@ -192,13 +196,13 @@ const TeacherPortal = () => {
   } = useQuery({
     queryKey: ["teacher-portal-data"],
     queryFn: async () => {
-      const [teacherResult, studentsResult, announcementsResult, classesResult, coursesResult] =
+      const [teacherResult, studentsResult, announcementsResult, classesResult, classCoursesResult] =
         await Promise.allSettled([
           apiAuthRequest<BackendTeacher>("/teachers/me"),
           apiAuthRequest<BackendStudent[]>("/students"),
           apiAuthRequest<BackendAnnouncement[]>("/announcements"),
           apiAuthRequest<BackendClass[]>("/classes"),
-          apiAuthRequest<BackendCourse[]>("/courses"),
+          apiAuthRequest<BackendTeacherClassCourse[]>("/teachers/me/class-courses"),
         ]);
 
       let teacherData = emptyTeacher;
@@ -219,13 +223,21 @@ const TeacherPortal = () => {
       }
 
       const classesData = classesResult.status === "fulfilled" ? classesResult.value : [];
-      const coursesData = coursesResult.status === "fulfilled" ? coursesResult.value : [];
+      const classCoursesData = classCoursesResult.status === "fulfilled" ? classCoursesResult.value : [];
+      const coursesData = classCoursesData.flatMap((entry) =>
+        entry.courses.map((course) => ({
+          ...course,
+          classId: entry.classId,
+          className: entry.className,
+        })),
+      );
 
       return {
         teacher: teacherData,
         students: studentsData,
         announcements: announcementsData,
         classes: classesData,
+        classCourses: classCoursesData,
         courses: coursesData,
       };
     },
@@ -236,14 +248,8 @@ const TeacherPortal = () => {
   const announcements = portalData?.announcements ?? [];
   const allBackendClasses = portalData?.classes ?? [];
   const allBackendCourses = portalData?.courses ?? [];
+  const allClassCourses = portalData?.classCourses ?? [];
   const myStudents = students;
-  const teacherBackendCourses = useMemo(
-    () =>
-      teacher.backendId
-        ? allBackendCourses.filter((course) => course.teacherId === teacher.backendId)
-        : allBackendCourses,
-    [allBackendCourses, teacher.backendId],
-  );
 
   const classNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -285,7 +291,29 @@ const TeacherPortal = () => {
   }, [activeNav, selectedClass]);
 
   const handleNavChange = (nav: string) => {
+    if (nav === "classes") {
+      navigate("/teacher/classes");
+      return;
+    }
     navigate(`/teacher/${nav}`);
+  };
+
+  const openClassCourses = (targetClassId: string) => {
+    navigate(`/teacher/classes/${encodeURIComponent(targetClassId)}/materials`);
+  };
+
+  const openCourseMaterials = (targetClassId: string, targetCourseId: string) => {
+    navigate(
+      `/teacher/classes/${encodeURIComponent(targetClassId)}/materials/${encodeURIComponent(targetCourseId)}`,
+    );
+  };
+
+  const backToClasses = () => {
+    navigate("/teacher/classes");
+  };
+
+  const backToClassCourses = (targetClassId: string) => {
+    navigate(`/teacher/classes/${encodeURIComponent(targetClassId)}/materials`);
   };
 
   const createAnnouncementMutation = useMutation({
@@ -337,6 +365,13 @@ const TeacherPortal = () => {
             selectedClass={selectedClass}
             onSelectClass={setSelectedClass}
             onNavigate={handleNavChange}
+            allClasses={allBackendClasses}
+            classRouteId={classId ? decodeURIComponent(classId) : undefined}
+            courseRouteId={courseId ? decodeURIComponent(courseId) : undefined}
+            onOpenClassCourses={openClassCourses}
+            onOpenCourseMaterials={openCourseMaterials}
+            onBackToClasses={backToClasses}
+            onBackToClassCourses={backToClassCourses}
           />
         );
       case "gradebook":

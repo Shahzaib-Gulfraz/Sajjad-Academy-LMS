@@ -30,7 +30,6 @@ type BackendTeacher = {
   employeeNo: string;
   name: string;
   email: string;
-  subject: string;
   gender?: string;
   qualification?: string;
   phone?: string;
@@ -394,12 +393,16 @@ export const useAdminData = () => {
             }
           });
 
+          const derivedSubjects = Array.from(
+            new Set(Object.values(mappedClassSubjects).flat()),
+          );
+
           return {
             id,
             backendId: bt.id,
             employeeNo: bt.employeeNo,
             name: bt.name,
-            subject: bt.subject,
+            subject: derivedSubjects.join(", "),
             email: bt.email,
             avatar: initials(bt.name),
             classes: classNames,
@@ -958,7 +961,6 @@ export const useAdminData = () => {
         employeeNo,
         name: teacher.name,
         email,
-        subject: teacher.subject,
         gender: teacher.gender,
         qualification: teacher.qualification,
         classes: classIds,
@@ -1011,7 +1013,6 @@ export const useAdminData = () => {
       body: JSON.stringify({
         name: teacher.name,
         email: teacher.email,
-        subject: teacher.subject,
         gender: teacher.gender,
         qualification: teacher.qualification,
         classes: classIds,

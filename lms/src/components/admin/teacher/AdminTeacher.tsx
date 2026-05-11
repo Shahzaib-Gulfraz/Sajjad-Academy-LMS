@@ -138,13 +138,16 @@ const AdminTeacher = ({
     if (!q) return teachers;
 
     return teachers.filter((t) => {
-      const subjectText = t.subject.toLowerCase();
       const classesText = t.classes.join(" ").toLowerCase();
+      const classSubjectsText = Object.values(t.classSubjects ?? {})
+        .flat()
+        .join(" ")
+        .toLowerCase();
       return (
         t.name.toLowerCase().includes(q) ||
         String(t.id).includes(q) ||
         teacherCode(t.id).toLowerCase().includes(q) ||
-        subjectText.includes(q) ||
+        classSubjectsText.includes(q) ||
         classesText.includes(q)
       );
     });
@@ -242,17 +245,13 @@ const AdminTeacher = ({
       return;
     }
 
-    const allSubjects = Array.from(
-      new Set(classes.flatMap((className) => effectiveClassSubjects[className] || [])),
-    );
-
     const newTeacher: AdminTeacherRecord = {
       id: numericId,
       employeeNo: normalizedPortalId,
       name,
       gender,
       qualification,
-      subject: allSubjects.join(", "),
+      subject: "",
       email: `${normalizedPortalId.toLowerCase().replace(/[^a-z0-9]/g, ".")}@school.edu`,
       avatar: getInitials(name),
       classes,
@@ -297,13 +296,6 @@ const AdminTeacher = ({
   const startEditing = (teacher: AdminTeacherRecord) => {
     setEditingTeacherId(teacher.id);
     let classSubjects = teacher.classSubjects ? { ...teacher.classSubjects } : {};
-    if (Object.keys(classSubjects).length === 0 && teacher.classes.length > 0) {
-      const subjects = teacher.subject.split(",").map((s) => s.trim()).filter(Boolean);
-      classSubjects = teacher.classes.reduce((acc, cls) => {
-        acc[cls] = subjects;
-        return acc;
-      }, {} as Record<string, string[]>);
-    }
     setEditForm({
       name: teacher.name,
       id: teacher.id,
@@ -361,17 +353,13 @@ const AdminTeacher = ({
       return;
     }
 
-    const allSubjects = Array.from(
-      new Set(classes.flatMap((className) => effectiveClassSubjects[className] || [])),
-    );
-
     const updatedTeacher: AdminTeacherRecord = {
       ...teachers.find((t) => t.id === editingTeacherId)!,
       id: editForm.id,
       name,
       gender,
       qualification,
-      subject: allSubjects.join(", "),
+      subject: "",
       classes,
       classSubjects: effectiveClassSubjects,
     };

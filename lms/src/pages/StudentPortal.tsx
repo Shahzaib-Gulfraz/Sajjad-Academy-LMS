@@ -22,7 +22,6 @@ import StudentAssignments from "@/components/student/assignments/components/Stud
 import StudentTimetable from "@/components/student/timetable/components/StudentTimetable";
 import StudentLeave from "@/components/student/leave/components/StudentLeave";
 import NotificationBell from "@/components/student/notifications/components/NotificationBell";
-import StudentCourses from "@/components/student/courses/components/StudentCourses";
 import StudentQuizzes from "@/components/student/quizzes/StudentQuizzes";
 import { apiAuthRequest } from "@/lib/api";
 import { EmptyState, SectionLoader } from "@/components/ui/states";
@@ -33,7 +32,7 @@ import type {
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "courses", label: "My Courses", icon: BookOpen },
+  { id: "materials", label: "Materials", icon: BookOpen },
   { id: "grades", label: "My Grades", icon: FileText },
   { id: "attendance", label: "Attendance", icon: UserCheck },
   { id: "assignments", label: "Assignments", icon: ClipboardList },
@@ -212,8 +211,12 @@ const StudentPortal = () => {
         return <StudentTimetable />;
       case "leave":
         return <StudentLeave />;
-      case "courses":
-        return <StudentCourses />;
+      case "materials":
+        return (
+          <div className="rounded-2xl border border-border/60 bg-card p-6 text-sm text-muted-foreground">
+            Learning materials are being consolidated into the class materials area.
+          </div>
+        );
       case "quizzes":
         return <StudentQuizzes student={student} />;
       case "announcements":

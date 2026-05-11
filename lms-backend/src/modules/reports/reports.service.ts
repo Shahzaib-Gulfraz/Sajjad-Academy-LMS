@@ -157,12 +157,28 @@ export class ReportsService {
       .sort((a, b) => b.pending - a.pending);
 
     const teacherWorkload = teachers.map((teacher) => {
-      const subjectCount = teacher.subject
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean).length;
-      const classSubjectCount =
-        teacher.classes.length * Math.max(1, subjectCount);
+      const classSubjectsMap = teacher.classSubjects as unknown as {
+        get?: (key: string) => string[];
+        values?: () => Iterable<string[]>;
+        [key: string]: unknown;
+      };
+
+      const subjectCount =
+        typeof classSubjectsMap?.values === 'function'
+          ? Array.from(classSubjectsMap.values()).reduce<number>(
+              (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+              0,
+            )
+          : (Object.values(classSubjectsMap ?? {}) as unknown[]).reduce<number>(
+              (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+              0,
+            );
+
+      const classSubjectCount = Math.max(
+        teacher.classes.length,
+        subjectCount,
+        1,
+      );
 
       return {
         id: teacher.employeeNo,

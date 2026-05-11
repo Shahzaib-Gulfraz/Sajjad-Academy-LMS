@@ -137,10 +137,7 @@ const AdminPortal = () => {
 
   const subjectOptions = useMemo(() => {
     const fromTeachers = teachers.flatMap((t) =>
-      t.subject
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
+      Object.values(t.classSubjects ?? {}).flat(),
     );
     const fromAllocations = plannerAllocations.map((a) => a.subject);
     const fromClasses = Object.values(classSubjects)

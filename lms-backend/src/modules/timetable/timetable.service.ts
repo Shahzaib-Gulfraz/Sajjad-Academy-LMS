@@ -294,14 +294,7 @@ export class TimetableService {
       return Array.from(new Set(classSubjects.filter(Boolean)));
     }
 
-    return Array.from(
-      new Set(
-        (teacher.subject ?? '')
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
-      ),
-    );
+    return [];
   }
 
   private async ensureNoConflicts(

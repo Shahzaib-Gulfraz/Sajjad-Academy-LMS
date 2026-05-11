@@ -11,6 +11,60 @@ export type BackendClass = {
   subjects: Array<{ id: string; name: string }>;
 };
 
+export type BackendTeacherClassCourse = {
+  classId: string;
+  className: string;
+  academicYear: string;
+  assignedCourseCount: number;
+  subjects: Array<{ id: string; name: string }>;
+  courses: Array<{
+    id: string;
+    courseId?: string;
+    subjectId: string;
+    name: string;
+    code: string;
+    description: string;
+    materialsCount: number;
+    overviewTitle?: string;
+    learningOutcomes?: string[];
+    objectives?: string[];
+    thumbnailUrl?: string;
+    thumbnailPublicId?: string;
+    weeklySchedule?: Array<{
+      id?: string;
+      day: string;
+      startTime: string;
+      endTime: string;
+      topic?: string;
+      location?: string;
+    }>;
+    recentMaterials?: Course["materials"];
+    chapters?: Course["chapters"];
+    materials?: Course["materials"];
+    overview?: {
+      description?: string;
+      learningOutcome?: string;
+      learningOutcomes?: string[];
+      objectives?: string[];
+      thumbnailUrl?: string;
+      thumbnailPublicId?: string;
+      recommendedBooks?: Array<{
+        title?: string;
+        author?: string;
+        fileUrl?: string;
+      }>;
+      weeklySchedule?: Array<{
+        day?: string;
+        startTime?: string;
+        endTime?: string;
+        topic?: string;
+        location?: string;
+      }>;
+    };
+    updatedAt?: string;
+  }>;
+};
+
 export type BackendCourse = {
   id: string;
   name: string;
@@ -37,6 +91,9 @@ export type BackendCourse = {
   chapters?: Course["chapters"];
   materials?: Course["materials"];
   teacherId: string;
+  teacherIds?: string[];       // NEW: Array of teacher IDs
+  primaryTeacherId?: string;   // NEW: Main owner
+  contributors?: Array<{ id: string; name: string }>;  // NEW: For display
   updatedAt?: string;
 };
 
@@ -191,7 +248,7 @@ export const useTeacherData = (teacher: Teacher) => {
         quizSubmissionsResult,
         timetableResult,
         gradebookResult,
-        coursesResult,
+        classCoursesResult,
       ] = await Promise.allSettled([
         apiAuthRequest<BackendClass[]>("/classes"),
         apiAuthRequest<BackendStudent[]>("/students"),
@@ -212,7 +269,7 @@ export const useTeacherData = (teacher: Teacher) => {
             ? `/gradebook/entries?teacherId=${encodeURIComponent(teacher.backendId)}&page=1&pageSize=200`
             : `/gradebook/entries?subject=${encodeURIComponent(teacher.subject)}&page=1&pageSize=200`,
         ),
-        apiAuthRequest<BackendCourse[]>("/courses"),
+        apiAuthRequest<BackendTeacherClassCourse[]>("/teachers/me/class-courses"),
       ]);
 
       const classes = classesResult.status === "fulfilled" 
@@ -234,7 +291,7 @@ export const useTeacherData = (teacher: Teacher) => {
         quizSubmissions: quizSubmissionsResult.status === "fulfilled" ? quizSubmissionsResult.value : [],
         timetableSlots: timetableQuery.data ?? [],
         gradebookEntries: gradebookResult.status === "fulfilled" ? gradebookResult.value : [],
-        backendCourses: coursesResult.status === "fulfilled" ? coursesResult.value : [],
+        classCourses: classCoursesResult.status === "fulfilled" ? classCoursesResult.value : [],
       };
     },
     staleTime: 5 * 60 * 1000,

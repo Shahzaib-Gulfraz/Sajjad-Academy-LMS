@@ -6,12 +6,29 @@ import { toast } from "sonner";
 import { uploadImageToCloudinary, deleteFileFromCloudinary, uploadFileToCloudinary } from "@/lib/cloudinary-upload";
 
 type WeeklyScheduleItem = {
-  id?: string;
   day: string;
   startTime: string;
   endTime: string;
   topic?: string;
   location?: string;
+};
+
+type RecentMaterialItem = {
+  title: string;
+  type: string;
+  url?: string;
+  publicId?: string;
+  content?: string;
+  resourceType?: "image" | "video" | "raw" | "auto";
+  originalFileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+
+type RecommendedBookItem = {
+  title: string;
+  author: string;
+  fileUrl?: string;
 };
 
 type OverviewPayload = {
@@ -21,6 +38,8 @@ type OverviewPayload = {
   objectives: string[];
   thumbnailUrl?: string;
   weeklySchedule: WeeklyScheduleItem[];
+  recentMaterials?: RecentMaterialItem[];
+  recommendedBooks?: RecommendedBookItem[];
 };
 
 interface Props {
@@ -31,7 +50,7 @@ interface Props {
     thumbnailUrl?: string;
     weeklySchedule?: WeeklyScheduleItem[];
   };
-  onSaveOverview: (payload: any) => Promise<void>;
+  onSaveOverview: (payload: OverviewPayload) => Promise<void>;
   onAddMaterial: (material: Omit<StudyMaterial, "id">) => void;
   onDeleteMaterial: (materialId: string) => void;
   titleDraft: string;
@@ -213,7 +232,7 @@ const OverviewTab = ({
         .map((entry) => entry.trim())
         .filter(Boolean);
 
-    onSaveOverview({
+    const payload = {
       title: titleDraft.trim(),
       description: overviewDraft.trim(),
       learningOutcomes: normalizeLines(outcomesDraft),
@@ -222,7 +241,6 @@ const OverviewTab = ({
       thumbnailPublicId: thumbnailPublicId || undefined,
       weeklySchedule: weeklySchedule
         .map((slot) => ({
-          ...slot,
           day: slot.day.trim(),
           startTime: slot.startTime.trim(),
           endTime: slot.endTime.trim(),
@@ -230,8 +248,20 @@ const OverviewTab = ({
           location: slot.location?.trim(),
         }))
         .filter((slot) => slot.day && slot.startTime && slot.endTime),
-      recentMaterials,
-    });
+      recentMaterials: recentMaterials.map((material) => ({
+        title: String(material?.title ?? "").trim(),
+        type: String(material?.type ?? "other"),
+        url: String(material?.url ?? "").trim() || undefined,
+        publicId: String(material?.publicId ?? "").trim() || undefined,
+        content: String(material?.content ?? "").trim() || undefined,
+        resourceType: material?.resourceType,
+        originalFileName: String(material?.originalFileName ?? "").trim() || undefined,
+        mimeType: String(material?.mimeType ?? "").trim() || undefined,
+        sizeBytes: typeof material?.sizeBytes === "number" ? material.sizeBytes : undefined,
+      })),
+    };
+    console.log('[OverviewTab] Saving overview with payload:', payload);
+    onSaveOverview(payload);
   };
 
   const [materialUploading, setMaterialUploading] = useState(false);

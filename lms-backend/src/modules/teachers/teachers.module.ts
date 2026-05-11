@@ -4,7 +4,6 @@ import { Teacher, TeacherSchema } from './schemas/teacher.schema';
 import { TeachersService } from './teachers.service';
 import { TeachersController } from './teachers.controller';
 import { UsersModule } from '../users/users.module';
-import { Course, CourseSchema } from '../courses/schemas/course.schema';
 import {
   Assignment,
   AssignmentSchema,
@@ -23,6 +22,9 @@ import {
   GradebookEntrySchema,
 } from '../gradebook/schemas/gradebook-entry.schema';
 import { LeaveRequest, LeaveRequestSchema } from '../leaves/schemas/leave-request.schema';
+import { SchoolClass, SchoolClassSchema } from '../classes/schemas/class.schema';
+import { Material, MaterialSchema } from '../materials/schemas/material.schema';
+import { Course, CourseSchema } from '../materials/schemas/courses.schema';
 
 @Module({
   imports: [
@@ -30,10 +32,6 @@ import { LeaveRequest, LeaveRequestSchema } from '../leaves/schemas/leave-reques
       {
         name: Teacher.name,
         schema: TeacherSchema,
-      },
-      {
-        name: Course.name,
-        schema: CourseSchema,
       },
       {
         name: Assignment.name,
@@ -58,6 +56,18 @@ import { LeaveRequest, LeaveRequestSchema } from '../leaves/schemas/leave-reques
       {
         name: LeaveRequest.name,
         schema: LeaveRequestSchema,
+      },
+      {
+        name: SchoolClass.name,
+        schema: SchoolClassSchema,
+      },
+      {
+        name: Material.name,
+        schema: MaterialSchema,
+      },
+      {
+        name: Course.name,
+        schema: CourseSchema,
       },
     ]),
     UsersModule,

@@ -62,6 +62,22 @@ const App = () => (
               />
               <Route path="/teacher" element={<Navigate to="/teacher/dashboard" replace />} />
               <Route
+                path="/teacher/:section/:classId/materials"
+                element={
+                  <RequireAuth allowedRoles={["teacher"]}>
+                    <TeacherPortal />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/teacher/:section/:classId/materials/:courseId"
+                element={
+                  <RequireAuth allowedRoles={["teacher"]}>
+                    <TeacherPortal />
+                  </RequireAuth>
+                }
+              />
+              <Route
                 path="/teacher/:section"
                 element={
                   <RequireAuth allowedRoles={["teacher"]}>

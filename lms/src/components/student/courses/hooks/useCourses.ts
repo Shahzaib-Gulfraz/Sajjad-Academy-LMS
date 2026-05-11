@@ -1,4 +1,3 @@
-import { apiAuthRequest } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export interface StudyMaterial {
@@ -83,19 +82,17 @@ export const useCourses = () => {
   } = useQuery({
     queryKey: ['student-courses'],
     queryFn: async () => {
-      const data = await apiAuthRequest<Course[]>('/courses/student/enrolled');
-      return Array.isArray(data) ? data : [];
+      return [] as Course[];
     },
     staleTime: 5 * 60 * 1000,
   });
 
   const toggleTopicMutation = useMutation({
     mutationFn: async ({ courseId, topicId, completed }: { courseId: string; topicId: string; completed: boolean }) => {
-      return apiAuthRequest<{ progress: number; completedTopicIds: string[] }>(`/courses/${courseId}/progress/topics/toggle`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topicId, completed }),
-      });
+      void courseId;
+      void topicId;
+      void completed;
+      return { progress: 0, completedTopicIds: [] as string[] };
     },
     onMutate: async ({ courseId, topicId, completed }) => {
       await queryClient.cancelQueries({ queryKey: ['student-courses'] });

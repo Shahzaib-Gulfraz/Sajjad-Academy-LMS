@@ -43,6 +43,17 @@ export class ClassesService {
     return classes.map((entry) => this.toResponse(entry));
   }
 
+  async findById(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('Class not found.');
+    }
+
+    const classDoc = await this.classModel.findById(id).exec();
+    if (!classDoc) throw new NotFoundException('Class not found.');
+
+    return this.toResponse(classDoc);
+  }
+
   async update(id: string, dto: UpdateClassDto) {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException('Class not found.');

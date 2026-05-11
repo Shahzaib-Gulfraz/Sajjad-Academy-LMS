@@ -38,3 +38,17 @@ async function request(path, options = {}) {
 
   const overview = await request('/reports/overview', {
     method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (overview.status !== 200) {
+    console.log('OVERVIEW_STATUS=' + overview.status);
+    console.log('OVERVIEW_ERROR=' + (overview.text || 'No response'));
+    process.exit(1);
+  }
+
+  console.log('REPORTS_SMOKE_OK');
+  process.exit(0);
+})();

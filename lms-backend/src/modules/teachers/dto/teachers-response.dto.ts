@@ -14,9 +14,6 @@ export class TeacherItemDto {
   email!: string;
 
   @ApiProperty()
-  subject!: string;
-
-  @ApiProperty()
   gender!: string;
 
   @ApiProperty()

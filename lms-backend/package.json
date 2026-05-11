@@ -13,6 +13,8 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "create:admin": "node scripts/create-admin.js",
+    "migrate:course-overview-materials": "node scripts/migrate-course-overview-materials-to-materials.js",
+    "cleanup:teacher-subject": "node scripts/cleanup-teacher-subject-field.js",
     "cleanup:orphan-student-users": "node scripts/cleanup-orphan-student-users.js",
     "cleanup:orphan-teacher-users": "node scripts/cleanup-orphan-teacher-users.js",
     "sync:course-enrollments": "node scripts/sync-course-enrollments.js",

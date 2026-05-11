@@ -24,7 +24,7 @@ import { AnnouncementsModule } from './modules/announcements/announcements.modul
 import { ReportsModule } from './modules/reports/reports.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
-import { CoursesModule } from './modules/courses/courses.module';
+import { MaterialsModule } from './modules/materials/materials.module';
 
 const logger = new Logger('Database');
 
@@ -102,7 +102,7 @@ const logger = new Logger('Database');
     ReportsModule,
     NotificationsModule,
     TimetableModule,
-    CoursesModule,
+    MaterialsModule,
   ],
   providers: [
     {
